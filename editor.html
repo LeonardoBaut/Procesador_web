@@ -1,0 +1,35 @@
+<!-- editor.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Editor de Código RISC-V</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Editor de Código RISC-V</h1>
+    <textarea id="codeEditor" rows="20" cols="80"></textarea>
+    <br>
+    <button onclick="saveCode()">Guardar Código</button>
+    <button onclick="loadCode()">Cargar Código</button>
+
+    <script src="simulator.js"></script>
+    <script>
+        let simulator;
+        window.addEventListener('DOMContentLoaded', () => {
+            simulator = new RISCVSimulator();
+        });
+
+        function saveCode() {
+            const code = document.getElementById('codeEditor').value;
+            localStorage.setItem('riscvCode', code);
+            alert('Código guardado');
+        }
+
+        function loadCode() {
+            const code = localStorage.getItem('riscvCode') || '';
+            document.getElementById('codeEditor').value = code;
+        }
+    </script>
+</body>
+</html>
