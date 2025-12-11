@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simulador RISC-V</title>
+<<<<<<< HEAD
     <style>
         * {
             margin: 0;
@@ -249,7 +251,11 @@
             filter: drop-shadow(0 0 6px #7BA97C);
         }
     </style>
+=======
+    <link rel="stylesheet" href="css/style.css">
+>>>>>>> 31abc78dc84405831f7be86834e035c13d9366ee
 </head>
+
 <body>
     <div id="app">
         <header>
@@ -260,7 +266,7 @@
             <div class="sidebar">
                 <div class="section">
                     <h3>Editor de Código</h3>
-                    <textarea id="codeEditor" spellcheck="false"># Ejemplo: Suma de números
+                    <textarea id="input" spellcheck="false"># Ejemplo: Suma de números
 addi x5, x0, 10
 addi x6, x0, 20
 add x7, x5, x6
@@ -271,7 +277,7 @@ sw x7, 0(x0)</textarea>
                     <div class="controls">
                         <button id="loadBtn" class="btn-load">Guardar</button>
                         <button id="stepBtn" class="btn-step">Paso</button>
-                        <button id="runBtn" class="btn-run">Ejecutar</button>
+                        <button id="runBtn" class="btn-run" onclick="convert()">Ejecutar</button>
                         <button id="resetBtn" class="btn-reset">Reiniciar</button>
                     </div>
                 </div>
@@ -279,7 +285,8 @@ sw x7, 0(x0)</textarea>
                 <div class="section">
                     <div class="state-box">
                         <div><span class="label">Contador de Programa:</span> <span id="pcValue">0</span></div>
-                        <div><span class="label">Instrucción:</span> <span id="currentInstruction">Sin instrucción</span></div>
+                        <div><span class="label">Instrucción:</span> <span id="currentInstruction">Sin
+                                instrucción</span></div>
                     </div>
                 </div>
 
@@ -310,6 +317,12 @@ sw x7, 0(x0)</textarea>
         </div>
     </div>
 
+<<<<<<< HEAD
     <script src="nuevo.js"></script>
+=======
+    <script src="js/simulador.js"></script>
+    <script src="js/logica_bin.js"></script>
+>>>>>>> 31abc78dc84405831f7be86834e035c13d9366ee
 </body>
+
 </html>

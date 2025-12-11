@@ -214,7 +214,7 @@ class RISCVSimulator {
     }
     
     loadCode() {
-        const code = document.getElementById('codeEditor').value;
+        const code = document.getElementById('input').value;
         const lines = code.split('\n');
         
         this.instructions = [];
@@ -1330,5 +1330,5 @@ srli x5, x5, 1
 beq x0, x0, -14
 beq x0, x0, 0`;
     
-    document.getElementById('codeEditor').value = exampleCode;
+    document.getElementById('input').value = exampleCode;
 });
