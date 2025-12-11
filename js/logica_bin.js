@@ -238,7 +238,7 @@ function convert() {
         pc += 4;
     });
     console.log(lista_inst);
-    document.getElementById("output").innerText = out;
+    //document.getElementById("output").innerText = out;
 }
 
 
