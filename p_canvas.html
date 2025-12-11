@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador RISC-V</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #F5F7FA;
+            color: #2C3E50;
+            overflow: hidden;
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            background-color: white;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e0e0e0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 320px;
+            background-color: white;
+            padding: 1rem;
+            overflow-y: auto;
+            border-right: 1px solid #e0e0e0;
+            box-shadow: 2px 0 4px rgba(0,0,0,0.05);
+        }
+
+        .section {
+            margin-bottom: 1.5rem;
+        }
+
+        .section h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #555;
+        }
+
+        #codeEditor {
+            width: 100%;
+            height: 200px;
+            background-color: #f8f9fa;
+            color: #2C3E50;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            resize: vertical;
+        }
+
+        #codeEditor:focus {
+            outline: none;
+            border-color: #7BA97C;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        button {
+            padding: 0.3rem 0.8rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 300;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .btn-load { background-color: #A8DADC; color: white; }
+        .btn-load:hover { background-color: #8BC5C8; }
+        
+        .btn-step { background-color: #B8E0D2; color: white; }
+        .btn-step:hover { background-color: #9FCCC0; }
+        
+        .btn-run { background-color: #D5B9E0; color: white; }
+        .btn-run:hover { background-color: #C4A5D1; }
+        
+        .btn-reset { background-color: #D4D4D4; color: #555; }
+        .btn-reset:hover { background-color: #C0C0C0; }
+
+        .state-box {
+            background-color: #f8f9fa;
+            padding: 0.75rem;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+            font-size: 0.85rem;
+        }
+
+        .state-box div {
+            margin-bottom: 0.25rem;
+        }
+
+        .label {
+            color: #457B9D;
+            font-weight: 600;
+        }
+
+        .list-box {
+            background-color: #f8f9fa;
+            padding: 0.5rem;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 0.75rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
+        }
+
+        .reg-name { color: #457B9D; font-weight: 600; }
+        .reg-value { color: #7BA97C; }
+        .mem-addr { color: #D4A574; font-weight: 600; }
+        .mem-value { color: #7BA97C; }
+
+        .log-entry {
+            color: #666;
+            margin-bottom: 0.25rem;
+        }
+
+        .log-entry.error {
+            color: #e74c3c;
+        }
+
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .zoom-controls {
+            background-color: white;
+            padding: 0.5rem;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .zoom-controls button {
+            padding: 0.25rem 0.75rem;
+            background-color: #f0f0f0;
+            color: #555;
+        }
+
+        .zoom-controls button:hover {
+            background-color: #e0e0e0;
+        }
+
+        .zoom-level {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        #canvasContainer {
+            flex: 1;
+            overflow: hidden;
+            cursor: grab;
+        }
+
+        #canvasContainer:active {
+            cursor: grabbing;
+        }
+
+        #datapathCanvas {
+            display: block;
+        }
+
+        /* Scrollbar styling */
+        .sidebar::-webkit-scrollbar,
+        .list-box::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .sidebar::-webkit-scrollbar-track,
+        .list-box::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb,
+        .list-box::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover,
+        .list-box::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Datapath Visual</h1>
+        </header>
+
+        <div class="main-container">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Editor de Código -->
+                <div class="section">
+                    <h3>Editor de Código</h3>
+                    <textarea id="codeEditor" spellcheck="false"># Ejemplo: Suma de números
+addi x5, x0, 10
+addi x6, x0, 20
+add x7, x5, x6
+sw x7, 0(x0)</textarea>
+                </div>
+
+                <!-- Controles -->
+                <div class="section">
+                    <div class="controls">
+                        <button id="loadBtn" class="btn-load">Guardar</button>
+                        <button id="stepBtn" class="btn-step">Paso</button>
+                        <button id="runBtn" class="btn-run">Ejecutar</button>
+                        <button id="resetBtn" class="btn-reset">Reiniciar</button>
+                    </div>
+                </div>
+
+                <!-- Estado del Sistema -->
+                <div class="section">
+                    <div class="state-box">
+                        <div><span class="label">Contador de Programa:</span> <span id="pcValue">0</span></div>
+                        <div><span class="label">Instrucción:</span> <span id="currentInstruction">Sin instrucción</span></div>
+                    </div>
+                </div>
+
+                <!-- Registros -->
+                <div class="section">
+                    <h3>Registros</h3>
+                    <div class="list-box" id="registerList"></div>
+                </div>
+            </div>
+
+            <!-- Canvas -->
+            <div class="canvas-container">
+                <div class="zoom-controls">
+                    <button id="zoomInBtn">+</button>
+                    <button id="zoomOutBtn">-</button>
+                    <button id="zoomResetBtn">Reset</button>
+                    <span class="zoom-level" id="zoomLevel">100%</span>
+                </div>
+                <div id="canvasContainer">
+                    <canvas id="datapathCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="simulador.js"></script>
+</body>
+</html>

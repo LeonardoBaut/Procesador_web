@@ -155,19 +155,8 @@
 
         .reg-name { color: #457B9D; font-weight: 600; }
         .reg-value { color: #7BA97C; }
-        .mem-addr { color: #D4A574; font-weight: 600; }
-        .mem-value { color: #7BA97C; }
 
-        .log-entry {
-            color: #666;
-            margin-bottom: 0.25rem;
-        }
-
-        .log-entry.error {
-            color: #e74c3c;
-        }
-
-        .canvas-container {
+        .svg-container {
             flex: 1;
             display: flex;
             flex-direction: column;
@@ -198,21 +187,21 @@
             color: #666;
         }
 
-        #canvasContainer {
+        #svgContainer {
             flex: 1;
-            overflow: hidden;
+            overflow: auto;
             cursor: grab;
+            background-color: #F5F7FA;
         }
 
-        #canvasContainer:active {
+        #svgContainer:active {
             cursor: grabbing;
         }
 
-        #datapathCanvas {
+        #datapathSVG {
             display: block;
         }
 
-        /* Scrollbar styling */
         .sidebar::-webkit-scrollbar,
         .list-box::-webkit-scrollbar {
             width: 8px;
@@ -233,6 +222,32 @@
         .list-box::-webkit-scrollbar-thumb:hover {
             background: #a8a8a8;
         }
+
+        /* Estilos SVG */
+        .component {
+            transition: all 0.3s ease;
+        }
+
+        .component.active {
+            filter: drop-shadow(0 0 8px rgba(100, 150, 200, 0.6));
+        }
+
+        .wire {
+            transition: all 0.3s ease;
+        }
+
+        .wire.active {
+            stroke-width: 3;
+            filter: drop-shadow(0 0 4px currentColor);
+        }
+
+        .control-signal {
+            transition: all 0.3s ease;
+        }
+
+        .control-signal.active {
+            filter: drop-shadow(0 0 6px #7BA97C);
+        }
     </style>
 </head>
 <body>
@@ -242,9 +257,7 @@
         </header>
 
         <div class="main-container">
-            <!-- Sidebar -->
             <div class="sidebar">
-                <!-- Editor de Código -->
                 <div class="section">
                     <h3>Editor de Código</h3>
                     <textarea id="codeEditor" spellcheck="false"># Ejemplo: Suma de números
@@ -254,7 +267,6 @@ add x7, x5, x6
 sw x7, 0(x0)</textarea>
                 </div>
 
-                <!-- Controles -->
                 <div class="section">
                     <div class="controls">
                         <button id="loadBtn" class="btn-load">Guardar</button>
@@ -264,7 +276,6 @@ sw x7, 0(x0)</textarea>
                     </div>
                 </div>
 
-                <!-- Estado del Sistema -->
                 <div class="section">
                     <div class="state-box">
                         <div><span class="label">Contador de Programa:</span> <span id="pcValue">0</span></div>
@@ -272,28 +283,33 @@ sw x7, 0(x0)</textarea>
                     </div>
                 </div>
 
-                <!-- Registros -->
                 <div class="section">
                     <h3>Registros</h3>
                     <div class="list-box" id="registerList"></div>
                 </div>
             </div>
 
-            <!-- Canvas -->
-            <div class="canvas-container">
+            <div class="svg-container">
                 <div class="zoom-controls">
                     <button id="zoomInBtn">+</button>
                     <button id="zoomOutBtn">-</button>
                     <button id="zoomResetBtn">Reset</button>
                     <span class="zoom-level" id="zoomLevel">100%</span>
                 </div>
-                <div id="canvasContainer">
-                    <canvas id="datapathCanvas"></canvas>
+                <div id="svgContainer">
+                    <svg id="datapathSVG" width="1100" height="700" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <filter id="shadow">
+                                <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+                            </filter>
+                        </defs>
+                        <g id="mainGroup"></g>
+                    </svg>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="simulador.js"></script>
+    <script src="nuevo.js"></script>
 </body>
 </html>
