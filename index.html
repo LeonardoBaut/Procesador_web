@@ -309,31 +309,6 @@
                 /* Asegúrate de que el color de fondo original de list-item se mantenga si no es transparente */
             }
         }
-
-        /* CSS para el Resaltado Temporal de la Memoria (Similar al de Registros) */
-        .highlight-memory {
-            background-color: #ffe6f0;
-            /* Rosa/Rojo claro para la memoria */
-            animation: fadeOutMemory 1.5s ease-out forwards;
-            border-radius: 4px;
-        }
-
-        @keyframes fadeOutMemory {
-            0% {
-                background-color: #ff450080;
-                /* Naranja/Rojo fuerte al inicio (color Store) */
-                transform: scale(1.02);
-            }
-
-            10% {
-                background-color: #ff450040;
-                transform: scale(1.0);
-            }
-
-            100% {
-                background-color: transparent;
-            }
-        }
     </style>
 </head>
 
@@ -373,11 +348,7 @@
                     <h3>Registros Principales</h3>
                     <div class="list-box" id="registerList"></div>
                 </div>
-                <div class="section">
-                    <h3>Memoria de Datos (DMEM)</h3>
-                    <div class="list-box" id="memoryList">
-                    </div>
-                </div>
+
                 <div class="section">
                     <h3>Registro de Eventos</h3>
                     <div class="list-box" id="logMessages"></div>
@@ -712,7 +683,6 @@
                                         <path d="M 158 425 L 158 460 L 8 460 L 8 199 L 16.9 198.81" fill="none"
                                             stroke="#000000" stroke-width="2" stroke-miterlimit="10"
                                             pointer-events="stroke"
-                                            class="wire wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                         <path d="M 22.89 198.68 L 14.98 202.85 L 16.9 198.81 L 14.81 194.85 Z"
                                             fill="#000000" stroke="#000000" stroke-width="2" stroke-miterlimit="10"
@@ -724,7 +694,6 @@
                                     <g>
                                         <path d="M 200.5 320 L 201 270 L 248 270" fill="none" stroke="#000000"
                                             stroke-width="2" stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -739,7 +708,6 @@
                                     <g>
                                         <path d="M 183 389.71 L 183 350" fill="none" stroke="#000000"
                                             stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));" />
                                     </g>
                                 </g>
@@ -762,7 +730,6 @@
                                         <path d="M 208 335 L 238 335 L 238 365 L 278 364.65" fill="none"
                                             stroke="#000000" stroke-width="2" stroke-miterlimit="10"
                                             pointer-events="stroke"
-                                            class="wire wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -802,7 +769,6 @@
                                     <g>
                                         <path d="M 378 280 L 378 85 L 319.82 85.2" fill="none" stroke="#000000"
                                             stroke-width="2" stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-R wire-I wire-L wire-S wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -890,7 +856,6 @@
                                     <g>
                                         <path d="M 363 365 L 318 365.35" fill="none" stroke="#000000" stroke-width="2"
                                             stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -898,7 +863,6 @@
                                     <g>
                                         <path d="M 432 387.5 L 393 385" fill="none" stroke="#000000" stroke-width="2"
                                             stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -937,7 +901,6 @@
                                         <path d="M 472 387.5 L 598 388 L 598 340 L 778 340 L 968 340 L 968 200"
                                             fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10"
                                             pointer-events="stroke"
-                                            class="wire wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -964,7 +927,6 @@
                                         <path d="M 1018 202.5 L 968 203 L 968 45 L 928.96 45.01" fill="none"
                                             stroke="#000000" stroke-width="2" stroke-miterlimit="10"
                                             pointer-events="stroke"
-                                            class="wire wire-R wire-I wire-L wire-S wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -972,7 +934,6 @@
                                     <g>
                                         <path d="M 878.5 180 L 968 180" fill="none" stroke="#000000" stroke-width="2"
                                             stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-R wire-I wire-L wire-S wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -981,7 +942,6 @@
                                         <path d="M 928 17.5 L 1198 18 L 1198 139 L 1168.9 138.6" fill="none"
                                             stroke="#000000" stroke-width="2" stroke-miterlimit="10"
                                             pointer-events="stroke"
-                                            class="wire wire-L"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -989,7 +949,6 @@
                                     <g>
                                         <path d="M 538 207.5 L 518 208 L 518 40 L 898 35" fill="none" stroke="#000000"
                                             stroke-width="2" stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-R wire-I wire-L"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -997,7 +956,6 @@
                                     <g>
                                         <path d="M 583 125 L 558 125 L 558 90 L 378 90" fill="none" stroke="#000000"
                                             stroke-width="2" stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-I "
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -1005,7 +963,6 @@
                                     <g>
                                         <path d="M 583 125 L 503 130" fill="none" stroke="#000000" stroke-width="2"
                                             stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-L wire-S"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -1014,7 +971,6 @@
                                         <path d="M 756.41 145.9 L 708 146 L 708 125 L 688 125" fill="none"
                                             stroke="#000000" stroke-width="2" stroke-miterlimit="10"
                                             pointer-events="stroke"
-                                            class="wire wire-I wire-L wire-S"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -1023,7 +979,6 @@
                                         <path d="M 689.8 198.5 L 718 199 L 718 176 L 758 172.5" fill="none"
                                             stroke="#000000" stroke-width="2" stroke-miterlimit="10"
                                             pointer-events="stroke"
-                                            class="wire wire-R wire-S wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -1032,7 +987,6 @@
                                         <path d="M 718 180 L 718 100 L 988 100 L 988 120 L 1019.05 119.25" fill="none"
                                             stroke="#000000" stroke-width="2" stroke-miterlimit="10"
                                             pointer-events="stroke"
-                                            class="wire wire-S "
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -1069,7 +1023,6 @@
                                     <g>
                                         <path d="M 831.1 156.62 L 788 155" fill="none" stroke="#000000" stroke-width="2"
                                             stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-R wire-I wire-L wire-S wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -1077,7 +1030,6 @@
                                     <g>
                                         <path d="M 473 112.5 L 378 110" fill="none" stroke="#000000" stroke-width="2"
                                             stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-L wire-S"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -1085,7 +1037,6 @@
                                     <g>
                                         <path d="M 476.3 140.92 L 378 140" fill="none" stroke="#000000" stroke-width="2"
                                             stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-L wire-S"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -1093,7 +1044,6 @@
                                     <g>
                                         <path d="M 378 230 L 538.9 229.7" fill="none" stroke="#000000" stroke-width="2"
                                             stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-R wire-I wire-L wire-S wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -1101,7 +1051,6 @@
                                     <g>
                                         <path d="M 378 254 L 538 254" fill="none" stroke="#000000" stroke-width="2"
                                             stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-R wire-S wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -1109,7 +1058,6 @@
                                     <g>
                                         <path d="M 328 280 L 540.85 276.2" fill="none" stroke="#000000" stroke-width="2"
                                             stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-R wire-L wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
@@ -1117,7 +1065,6 @@
                                     <g>
                                         <path d="M 328 250 L 378 250" fill="none" stroke="#000000" stroke-width="2"
                                             stroke-miterlimit="10" pointer-events="stroke"
-                                            class="wire wire-B"
                                             style="stroke: light-dark(rgb(0, 0, 0), rgb(234, 107, 102));" />
                                     </g>
                                 </g>
