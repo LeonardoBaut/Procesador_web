@@ -6,67 +6,120 @@ let state = {
   program: [],
   running: false,
   signalStates: {},
+  
+  // Almacena las etiquetas y sus direcciones
+  labels: {},
+  
+  // Estructura para almacenar los valores que fluyen por las líneas
+  wireValues: {
+    PC: 0,
+    PC_Plus_4: 4,
+    Instruction: "---",
+    ReadData1: 0,
+    ReadData2: 0,
+    Immediate: 0,
+    ALU_Src_B: 0,
+    ALU_Result: 0,
+    Data_Mem_Read: 0,
+    Branch_Target: 0,
+    Write_Data: 0,
+  },
+  
   logs: [],
   zoom: 1,
-  pan: { x: 50, y: 50 },
+  pan: { x: 0, y: 0 },
   isDragging: false,
-  lastMouse: { x: 0, y: 0 }
+  lastMouse: { x: 0, y: 0 },
+  showWireValues: true,
+  
+  // Para el SVG
+  svgInitialized: false
 };
 
-// Constantes del datapath
-const datapathWidth = 1400;
-const datapathHeight = 700;
-
-// Componentes del datapath
-const components = {
-  pc: { x: 50, y: 100, w: 80, h: 50, label: 'PC', color: '#B8E0D2', border: '#6A9C89' },
-  pcAdder: { x: 50, y: 200, w: 80, h: 50, label: 'PC+4', color: '#A8DADC', border: '#457B9D' },
-  muxPC: { x: 100, y: 30, w: 40, h: 60, label: 'MUX \nPC', color: '#D4D4D4', border: '#8E8E8E' },
-  instMem: { x: 220, y: 50, w: 140, h: 180, label: 'Memoria de\nInstrucciones', color: '#D5B9E0', border: '#8B7BA8' },
-  regBank: { x: 480, y: 80, w: 150, h: 160, label: 'Banco de\nRegistros', color: '#C7E9C0', border: '#7BA97C' },
-  signExtend: { x: 400, y: 280, w: 100, h: 50, label: 'Sign\nExtend', color: '#E8DFF5', border: '#9B8FC2' },
-  muxImmRd: { x: 400, y: 200, w: 40, h: 60, label: 'MUX \nImm', color: '#D4D4D4', border: '#8E8E8E' },
-  muxAluSrc: { x: 670, y: 150, w: 40, h: 60, label: 'MUX \nALU \nsrc', color: '#D4D4D4', border: '#8E8E8E' },
-  alu: { x: 740, y: 120, w: 120, h: 100, label: 'ALU', color: '#F4C4C4', border: '#C17B7B' },
-  muxAlu2Reg: { x: 900, y: 130, w: 40, h: 60, label: 'MUX \nALU \n2reg', color: '#D4D4D4', border: '#8E8E8E' },
-  dataMem: { x: 980, y: 80, w: 140, h: 160, label: 'Memoria de\nDatos', color: '#FFD6A5', border: '#D4A574' },
-  ordenamiento: { x: 220, y: 280, w: 100, h: 50, label: 'Branch\nOffset', color: '#FFE5B4', border: '#D4A574' },
-  sumadorBranch: { x: 150, y: 280, w: 80, h: 50, label: 'PC+\nOffset', color: '#A8DADC', border: '#457B9D' },
-  control: { x: 450, y: 380, w: 200, h: 80, label: 'Unidad de Control', color: '#E0D4F7', border: '#9B8FC2' }
+// Mapeo de instrucciones RISC-V soportadas
+const RISC_V_INSTRUCTIONS = {
+  'add': { type: 'R' }, 'sub': { type: 'R' }, 'and': { type: 'R' }, 'or': { type: 'R' }, 'xor': { type: 'R' },
+  'sll': { type: 'R' }, 'srl': { type: 'R' }, 'sra': { type: 'R' }, 'slt': { type: 'R' }, 'sltu': { type: 'R' },
+  
+  'addi': { type: 'I' }, 'andi': { type: 'I' }, 'ori': { type: 'I' }, 'xori': { type: 'I' }, 'slti': { type: 'I' },
+  'sltiu': { type: 'I' }, 'slli': { type: 'I' }, 'srli': { type: 'I' }, 'srai': { type: 'I' },
+  
+  'lw': { type: 'L' }, 'lh': { type: 'L' }, 'lb': { type: 'L' }, 'lhu': { type: 'L' }, 'lbu': { type: 'L' },
+  
+  'sw': { type: 'S' }, 'sh': { type: 'S' }, 'sb': { type: 'S' },
+  
+  'beq': { type: 'B' }, 'bne': { type: 'B' }, 'blt': { type: 'B' }, 'bge': { type: 'B' }, 'bltu': { type: 'B' }, 'bgeu': { type: 'B' },
+  
+  'jal': { type: 'J' }, 'jalr': { type: 'I' },
+  
+  'lui': { type: 'U' }, 'auipc': { type: 'U' }
 };
 
 // Referencias a elementos del DOM
-let canvas, ctx, input, pcValue, currentInstruction, registerList, zoomLevel;
+let codeEditor, pcValue, currentInstruction, registerList, zoomLevel;
+let svgElement, mainGroup, svgContainer;
 
-// Inicialización
 document.addEventListener('DOMContentLoaded', () => {
+  console.log("🚀 Simulador RISC-V iniciando...");
   initializeDOM();
+  initializeSVG();
   setupEventListeners();
   loadInitialCode();
   updateUI();
-  drawDatapath();
+  resetWires();
 });
 
 function initializeDOM() {
-  canvas = document.getElementById('datapathCanvas');
-  ctx = canvas.getContext('2d');
-  input = document.getElementById('input');
+  // Elementos principales
+  codeEditor = document.getElementById('codeEditor');
   pcValue = document.getElementById('pcValue');
   currentInstruction = document.getElementById('currentInstruction');
   registerList = document.getElementById('registerList');
   zoomLevel = document.getElementById('zoomLevel');
+  svgContainer = document.getElementById('svgContainer');
   
-  // Configurar tamaño del canvas
-  const container = document.getElementById('canvasContainer');
-  canvas.width = container.clientWidth;
-  canvas.height = container.clientHeight;
+  console.log("✓ DOM inicializado");
+  console.log("📋 Elementos encontrados:");
+  console.log("  - Code Editor:", !!codeEditor);
+  console.log("  - PC Value:", !!pcValue);
+  console.log("  - Current Instruction:", !!currentInstruction);
+  console.log("  - Register List:", !!registerList);
+  console.log("  - SVG Container:", !!svgContainer);
+}
+
+function initializeSVG() {
+  svgElement = document.getElementById('datapathSVG');
+  if (!svgElement) {
+    console.error("❌ No se encontró el SVG con ID 'datapathSVG'");
+    return;
+  }
   
-  // Redimensionar canvas al cambiar tamaño de ventana
-  window.addEventListener('resize', () => {
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
-    drawDatapath();
-  });
+  // Buscar el mainGroup - puede estar dentro del primer SVG
+  mainGroup = svgElement.getElementById('mainGroup');
+  if (!mainGroup) {
+    // Intentar encontrar el SVG interno
+    const innerSVG = svgElement.querySelector('svg');
+    if (innerSVG) {
+      mainGroup = innerSVG.getElementById('mainGroup');
+    }
+  }
+  
+  if (!mainGroup) {
+    console.error("❌ No se encontró 'mainGroup' en el SVG");
+    return;
+  }
+  
+  console.log("✅ SVG cargado correctamente!");
+  state.svgInitialized = true;
+  
+  // Aplicar transformación inicial
+  applyTransform();
+}
+
+function applyTransform() {
+  if (mainGroup) {
+    mainGroup.setAttribute('transform', `translate(${state.pan.x}, ${state.pan.y}) scale(${state.zoom})`);
+  }
 }
 
 function setupEventListeners() {
@@ -80,68 +133,89 @@ function setupEventListeners() {
   document.getElementById('zoomInBtn').addEventListener('click', () => {
     state.zoom = Math.min(2.5, state.zoom * 1.2);
     updateZoomDisplay();
-    drawDatapath();
+    applyTransform();
   });
   
   document.getElementById('zoomOutBtn').addEventListener('click', () => {
     state.zoom = Math.max(0.5, state.zoom / 1.2);
     updateZoomDisplay();
-    drawDatapath();
+    applyTransform();
   });
   
   document.getElementById('zoomResetBtn').addEventListener('click', () => {
     state.zoom = 1;
-    state.pan = { x: 50, y: 50 };
+    state.pan = { x: 0, y: 0 };
     updateZoomDisplay();
-    drawDatapath();
+    applyTransform();
   });
   
-  // Eventos del canvas para pan
-  canvas.addEventListener('mousedown', (e) => {
+  // Eventos para pan en el SVG
+  svgContainer.addEventListener('mousedown', (e) => {
     state.isDragging = true;
     state.lastMouse = { x: e.clientX, y: e.clientY };
+    e.preventDefault();
   });
   
-  canvas.addEventListener('mousemove', (e) => {
+  svgContainer.addEventListener('mousemove', (e) => {
     if (!state.isDragging) return;
     const deltaX = e.clientX - state.lastMouse.x;
     const deltaY = e.clientY - state.lastMouse.y;
     state.pan.x += deltaX;
     state.pan.y += deltaY;
     state.lastMouse = { x: e.clientX, y: e.clientY };
-    drawDatapath();
+    applyTransform();
+    e.preventDefault();
   });
   
-  canvas.addEventListener('mouseup', () => {
+  svgContainer.addEventListener('mouseup', () => {
     state.isDragging = false;
   });
   
-  canvas.addEventListener('mouseleave', () => {
+  svgContainer.addEventListener('mouseleave', () => {
     state.isDragging = false;
   });
 }
 
 function loadInitialCode() {
   const initialCode = `# Programa de ejemplo: Fibonacci
-addi x10, x0, 0
-addi x11, x0, 1
-addi x5, x0, 500
-addi x7, x0, 0
-add x12, x10, x11
-addi x7, x7, 1
-bge x12, x5, 2
-add x10, x0, x11
-add x11, x0, x12
-beq x0, x0, -5`;
-  input.value = initialCode;
+# Inicialización
+main:
+    addi x10, x0, 0     # F[n-2] = 0
+    addi x11, x0, 1     # F[n-1] = 1
+    addi x5, x0, 100    # Límite
+    addi x7, x0, 0      # Contador
+    
+loop:
+    add x12, x10, x11   # F[n] = F[n-2] + F[n-1]
+    addi x7, x7, 1      # contador++
+    
+    # Verificar límite
+    bge x12, x5, end    # if F[n] >= límite, terminar
+    
+    # Actualizar para siguiente iteración
+    add x10, x0, x11    # F[n-2] = F[n-1]
+    add x11, x0, x12    # F[n-1] = F[n]
+    
+    j loop              # repetir
+    
+end:
+    # Guardar resultados
+    sw x10, 0(x0)       # memoria[0] = F[n-2]
+    sw x11, 4(x0)       # memoria[1] = F[n-1]
+    sw x12, 8(x0)       # memoria[2] = F[n]
+    
+    # Operaciones adicionales
+    andi x13, x12, 0xFF
+    slli x14, x12, 2
+    slt x15, x10, x11`;
+  
+  codeEditor.value = initialCode;
+  console.log("✓ Código inicial cargado");
 }
 
 function addLog(msg, type = 'info') {
   const time = new Date().toLocaleTimeString();
-  state.logs.push({ time, msg, type });
-  if (state.logs.length > 50) {
-    state.logs.shift();
-  }
+  console.log(`[${type.toUpperCase()}] ${time} - ${msg}`);
 }
 
 function signExtend(value, bits) {
@@ -157,7 +231,16 @@ function parseInstruction(line) {
   line = line.trim().split('#')[0].trim();
   if (!line) return null;
   
-  const loadStoreMatch = line.match(/^(lw|sw)\s+(\w+),\s*(-?\d+)\((\w+)\)/);
+  // Verificar si es una etiqueta
+  if (line.endsWith(':')) {
+    return {
+      type: 'LABEL',
+      label: line.slice(0, -1)
+    };
+  }
+  
+  // Patrones para diferentes tipos de instrucciones
+  const loadStoreMatch = line.match(/^(lw|lh|lb|lhu|lbu|sw|sh|sb)\s+(\w+),\s*(-?\d+)\((\w+)\)/);
   if (loadStoreMatch) {
     return {
       raw: line,
@@ -177,30 +260,140 @@ function parseInstruction(line) {
 }
 
 function getRegIndex(reg) {
-  if (reg.startsWith('x')) return parseInt(reg.substring(1));
+  // Mapeo de registros ABI a índices
+  const abiMap = {
+    'zero': 0, 'x0': 0,
+    'ra': 1, 'x1': 1,
+    'sp': 2, 'x2': 2,
+    'gp': 3, 'x3': 3,
+    'tp': 4, 'x4': 4,
+    't0': 5, 'x5': 5,
+    't1': 6, 'x6': 6,
+    't2': 7, 'x7': 7,
+    's0': 8, 'fp': 8, 'x8': 8,
+    's1': 9, 'x9': 9,
+    'a0': 10, 'x10': 10,
+    'a1': 11, 'x11': 11,
+    'a2': 12, 'x12': 12,
+    'a3': 13, 'x13': 13,
+    'a4': 14, 'x14': 14,
+    'a5': 15, 'x15': 15,
+    'a6': 16, 'x16': 16,
+    'a7': 17, 'x17': 17,
+    's2': 18, 'x18': 18,
+    's3': 19, 'x19': 19,
+    's4': 20, 'x20': 20,
+    's5': 21, 'x21': 21,
+    's6': 22, 'x22': 22,
+    's7': 23, 'x23': 23,
+    's8': 24, 'x24': 24,
+    's9': 25, 'x25': 25,
+    's10': 26, 'x26': 26,
+    's11': 27, 'x27': 27,
+    't3': 28, 'x28': 28,
+    't4': 29, 'x29': 29,
+    't5': 30, 'x30': 30,
+    't6': 31, 'x31': 31,
+  };
+  
+  const regLower = reg.toLowerCase();
+  if (abiMap.hasOwnProperty(regLower)) {
+    return abiMap[regLower];
+  }
+  
+  if (reg.startsWith('x')) {
+    const num = parseInt(reg.substring(1));
+    if (!isNaN(num) && num >= 0 && num <= 31) return num;
+  }
+  
   return 0;
 }
 
-function loadCode() {
-  const code = input.value;
-  const lines = code.split('\n');
-  const newProgram = [];
+function collectLabels(lines) {
+  const labels = {};
+  let pc_bytes = 0;
   
   for (let line of lines) {
     const inst = parseInstruction(line);
-    if (inst) newProgram.push(inst);
+    if (inst && inst.type === 'LABEL') {
+      labels[inst.label] = pc_bytes;
+    } else if (inst && inst.type !== 'LABEL') {
+      pc_bytes += 4;
+    }
+  }
+  return labels;
+}
+
+function resolveLabels(program, labels) {
+  const resolvedProgram = [];
+  
+  for (let inst of program) {
+    if (inst.type === 'LABEL') continue;
+    
+    const resolvedInst = { ...inst };
+    
+    // Resolver etiquetas en saltos
+    const lastOperandIndex = inst.operands.length - 1;
+    const lastOperand = inst.operands[lastOperandIndex];
+    
+    if (['beq', 'bne', 'blt', 'bge', 'bltu', 'bgeu', 'jal', 'jalr'].includes(inst.opcode)) {
+      if (labels.hasOwnProperty(lastOperand)) {
+        const currentPC = resolvedProgram.length * 4;
+        const targetPC = labels[lastOperand];
+        const offset = (targetPC - currentPC) / 4;
+        
+        const newOperands = [...inst.operands];
+        newOperands[lastOperandIndex] = offset.toString();
+        resolvedInst.operands = newOperands;
+      }
+    }
+    
+    resolvedProgram.push(resolvedInst);
   }
   
+  return resolvedProgram;
+}
+
+function loadCode() {
+  const code = codeEditor.value;
+  const lines = code.split('\n');
+  const rawProgram = [];
+  
+  // Primera pasada: parsear todas las líneas
+  for (let line of lines) {
+    const inst = parseInstruction(line);
+    if (inst) rawProgram.push(inst);
+  }
+  
+  // Coleccionar etiquetas
+  state.labels = collectLabels(lines);
+  console.log("🏷️ Etiquetas encontradas:", state.labels);
+  
+  // Resolver etiquetas
+  state.program = resolveLabels(rawProgram, state.labels);
+  
+  // Reiniciar estado
   state.pc = 0;
   state.registers = Array(32).fill(0);
   state.memory = Array(256).fill(0);
   state.signalStates = {};
-  state.program = newProgram;
-  state.logs = [];
+  state.wireValues = {
+    PC: 0,
+    PC_Plus_4: 4,
+    Instruction: "---",
+    ReadData1: 0,
+    ReadData2: 0,
+    Immediate: 0,
+    ALU_Src_B: 0,
+    ALU_Result: 0,
+    Data_Mem_Read: 0,
+    Branch_Target: 0,
+    Write_Data: 0,
+  };
   
-  addLog(`Cargadas ${newProgram.length} instrucciones`, 'success');
+  addLog(`Cargadas ${state.program.length} instrucciones`, 'success');
   updateUI();
-  drawDatapath();
+  resetWires();
 }
 
 function executeInstruction(inst) {
@@ -210,308 +403,295 @@ function executeInstruction(inst) {
   const newMem = [...state.memory];
   let newPc = state.pc;
   let signals = {};
+  let isBranchTaken = false;
+  let isJumpTaken = false;
+
+  const currentPC = state.pc * 4;
+  const pc_plus_4 = currentPC + 4;
+  
+  // Valores del datapath
+  let rs1_data = 0, rs2_data = 0, imm_val = 0;
+  let alu_input_b = 0, alu_result = 0;
+  let data_mem_read = 0, write_data_val = 0;
+  let branch_target_val = 0;
 
   try {
-    switch(op) {
-      case 'add': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] + newRegs[rs2]) | 0;
-        signals = { type: 'R', alu_op: 'ADD', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'sub': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] - newRegs[rs2]) | 0;
-        signals = { type: 'R', alu_op: 'SUB', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'addi': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const imm = signExtend(parseInt(ops[2]), 12);
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] + imm) | 0;
-        signals = { type: 'I', alu_op: 'ADD', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'and': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] & newRegs[rs2];
-        signals = { type: 'R', alu_op: 'AND', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'andi': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const imm = signExtend(parseInt(ops[2]), 12);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] & imm;
-        signals = { type: 'I', alu_op: 'AND', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'or': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] | newRegs[rs2];
-        signals = { type: 'R', alu_op: 'OR', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'ori': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const imm = signExtend(parseInt(ops[2]), 12);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] | imm;
-        signals = { type: 'I', alu_op: 'OR', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'xor': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] ^ newRegs[rs2];
-        signals = { type: 'R', alu_op: 'XOR', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'xori': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const imm = signExtend(parseInt(ops[2]), 12);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] ^ imm;
-        signals = { type: 'I', alu_op: 'XOR', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'sll': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] << (newRegs[rs2] & 0x1F);
-        signals = { type: 'R', alu_op: 'SLL', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'slli': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const shamt = parseInt(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] << shamt;
-        signals = { type: 'I', alu_op: 'SLL', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'srl': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] >>> (newRegs[rs2] & 0x1F);
-        signals = { type: 'R', alu_op: 'SRL', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'srli': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const shamt = parseInt(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] >>> shamt;
-        signals = { type: 'I', alu_op: 'SRL', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'sra': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] >> (newRegs[rs2] & 0x1F);
-        signals = { type: 'R', alu_op: 'SRA', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'srai': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const shamt = parseInt(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] >> shamt;
-        signals = { type: 'I', alu_op: 'SRA', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'slt': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] | 0) < (newRegs[rs2] | 0) ? 1 : 0;
-        signals = { type: 'R', alu_op: 'SLT', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'slti': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const imm = signExtend(parseInt(ops[2]), 12);
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] | 0) < imm ? 1 : 0;
-        signals = { type: 'I', alu_op: 'SLT', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'sltu': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] >>> 0) < (newRegs[rs2] >>> 0) ? 1 : 0;
-        signals = { type: 'R', alu_op: 'SLTU', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'sltiu': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const imm = parseInt(ops[2]) & 0xFFF;
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] >>> 0) < (imm >>> 0) ? 1 : 0;
-        signals = { type: 'I', alu_op: 'SLTU', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'lw': {
-        const rd = getRegIndex(ops[0]);
-        const offset = parseInt(ops[1]);
-        const rs1 = getRegIndex(ops[2]);
-        const addr = (newRegs[rs1] + offset) | 0;
-        if (rd !== 0 && addr >= 0 && addr < newMem.length) {
-          newRegs[rd] = newMem[addr];
-        }
-        signals = { type: 'L', alu_op: 'ADD', wer: 1, alu_src: 0, alu2reg: 0, wem: 0, branch: 0 };
-        break;
-      }
-      case 'sw': {
-        const rs2 = getRegIndex(ops[0]);
-        const offset = parseInt(ops[1]);
-        const rs1 = getRegIndex(ops[2]);
-        const addr = (newRegs[rs1] + offset) | 0;
-        if (addr >= 0 && addr < newMem.length) {
-          newMem[addr] = newRegs[rs2];
-        }
-        signals = { type: 'S', alu_op: 'ADD', wer: 0, alu_src: 0, alu2reg: 0, wem: 1, branch: 0 };
-        break;
-      }
-      case 'beq': {
-        const rs1 = getRegIndex(ops[0]);
-        const rs2 = getRegIndex(ops[1]);
-        const offset = parseInt(ops[2]);
-        signals = { type: 'B', alu_op: 'EQ', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
-        if (newRegs[rs1] === newRegs[rs2]) {
-          newPc += offset;
-          state.registers = newRegs;
-          state.memory = newMem;
-          state.pc = newPc;
-          state.signalStates = signals;
-          addLog(`PC=${state.pc - offset}: ${inst.raw} [TOMADO]`, 'success');
-          updateUI();
-          drawDatapath();
-          return;
-        }
-        break;
-      }
-      case 'bne': {
-        const rs1 = getRegIndex(ops[0]);
-        const rs2 = getRegIndex(ops[1]);
-        const offset = parseInt(ops[2]);
-        signals = { type: 'B', alu_op: 'NE', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
-        if (newRegs[rs1] !== newRegs[rs2]) {
-          newPc += offset;
-          state.registers = newRegs;
-          state.memory = newMem;
-          state.pc = newPc;
-          state.signalStates = signals;
-          addLog(`PC=${state.pc - offset}: ${inst.raw} [TOMADO]`, 'success');
-          updateUI();
-          drawDatapath();
-          return;
-        }
-        break;
-      }
-      case 'blt': {
-        const rs1 = getRegIndex(ops[0]);
-        const rs2 = getRegIndex(ops[1]);
-        const offset = parseInt(ops[2]);
-        signals = { type: 'B', alu_op: 'SLT', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
-        if ((newRegs[rs1] | 0) < (newRegs[rs2] | 0)) {
-          newPc += offset;
-          state.registers = newRegs;
-          state.memory = newMem;
-          state.pc = newPc;
-          state.signalStates = signals;
-          addLog(`PC=${state.pc - offset}: ${inst.raw} [TOMADO]`, 'success');
-          updateUI();
-          drawDatapath();
-          return;
-        }
-        break;
-      }
-      case 'bge': {
-        const rs1 = getRegIndex(ops[0]);
-        const rs2 = getRegIndex(ops[1]);
-        const offset = parseInt(ops[2]);
-        signals = { type: 'B', alu_op: 'SLT', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
-        if ((newRegs[rs1] | 0) >= (newRegs[rs2] | 0)) {
-          newPc += offset;
-          state.registers = newRegs;
-          state.memory = newMem;
-          state.pc = newPc;
-          state.signalStates = signals;
-          addLog(`PC=${state.pc - offset}: ${inst.raw} [TOMADO]`, 'success');
-          updateUI();
-          drawDatapath();
-          return;
-        }
-        break;
-      }
-      case 'bltu': {
-        const rs1 = getRegIndex(ops[0]);
-        const rs2 = getRegIndex(ops[1]);
-        const offset = parseInt(ops[2]);
-        signals = { type: 'B', alu_op: 'SLTU', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
-        if ((newRegs[rs1] >>> 0) < (newRegs[rs2] >>> 0)) {
-          newPc += offset;
-          state.registers = newRegs;
-          state.memory = newMem;
-          state.pc = newPc;
-          state.signalStates = signals;
-          addLog(`PC=${state.pc - offset}: ${inst.raw} [TOMADO]`, 'success');
-          updateUI();
-          drawDatapath();
-          return;
-        }
-        break;
-      }
-      case 'bgeu': {
-        const rs1 = getRegIndex(ops[0]);
-        const rs2 = getRegIndex(ops[1]);
-        const offset = parseInt(ops[2]);
-        signals = { type: 'B', alu_op: 'SLTU', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
-        if ((newRegs[rs1] >>> 0) >= (newRegs[rs2] >>> 0)) {
-          newPc += offset;
-          state.registers = newRegs;
-          state.memory = newMem;
-          state.pc = newPc;
-          state.signalStates = signals;
-          addLog(`PC=${state.pc - offset}: ${inst.raw} [TOMADO]`, 'success');
-          updateUI();
-          drawDatapath();
-          return;
-        }
-        break;
-      }
-      default:
-        addLog(`Instrucción no soportada: ${op}`, 'error');
-        return;
+    const instructionInfo = RISC_V_INSTRUCTIONS[op];
+    if (!instructionInfo) {
+      throw new Error(`Instrucción no soportada: ${op}`);
     }
-
-    newPc++;
+    
+    switch(instructionInfo.type) {
+      case 'R':
+        rs1_data = state.registers[getRegIndex(ops[1])];
+        rs2_data = state.registers[getRegIndex(ops[2])];
+        signals = { 
+          type: 'R', 
+          alu_op: op.toUpperCase(), 
+          wer: 1, 
+          alu_src: 1, 
+          alu2reg: 1, 
+          wem: 0, 
+          branch: 0,
+          jump: 0
+        };
+        alu_input_b = rs2_data;
+        break;
+        
+      case 'I':
+        if (['jalr'].includes(op)) {
+          // JALR
+          rs1_data = state.registers[getRegIndex(ops[1])];
+          imm_val = signExtend(parseInt(ops[2]), 12);
+          signals = {
+            type: 'I',
+            alu_op: 'ADD',
+            wer: 1,
+            alu_src: 0,
+            alu2reg: 0,
+            wem: 0,
+            branch: 0,
+            jump: 1
+          };
+          alu_input_b = imm_val;
+          isJumpTaken = true;
+        } else if (['lw', 'lh', 'lb', 'lhu', 'lbu'].includes(op)) {
+          // Load
+          rs1_data = state.registers[getRegIndex(ops[2])];
+          imm_val = signExtend(parseInt(ops[1]), 12);
+          signals = {
+            type: 'L',
+            alu_op: 'ADD',
+            wer: 1,
+            alu_src: 0,
+            alu2reg: 0,
+            wem: 0,
+            branch: 0,
+            jump: 0
+          };
+          alu_input_b = imm_val;
+        } else {
+          // I-Type ALU
+          rs1_data = state.registers[getRegIndex(ops[1])];
+          imm_val = signExtend(parseInt(ops[2]), 12);
+          signals = {
+            type: 'I',
+            alu_op: op.replace('i', '').toUpperCase(),
+            wer: 1,
+            alu_src: 0,
+            alu2reg: 1,
+            wem: 0,
+            branch: 0,
+            jump: 0
+          };
+          alu_input_b = imm_val;
+        }
+        break;
+        
+      case 'S':
+        rs1_data = state.registers[getRegIndex(ops[2])];
+        rs2_data = state.registers[getRegIndex(ops[0])];
+        imm_val = signExtend(parseInt(ops[1]), 12);
+        signals = {
+          type: 'S',
+          alu_op: 'ADD',
+          wer: 0,
+          alu_src: 0,
+          alu2reg: 0,
+          wem: 1,
+          branch: 0,
+          jump: 0
+        };
+        alu_input_b = imm_val;
+        break;
+        
+      case 'B':
+        rs1_data = state.registers[getRegIndex(ops[0])];
+        rs2_data = state.registers[getRegIndex(ops[1])];
+        const offset = parseInt(ops[2]) * 4;
+        imm_val = signExtend(offset, 12);
+        signals = {
+          type: 'B',
+          alu_op: 'CMP',
+          wer: 0,
+          alu_src: 1,
+          alu2reg: 0,
+          wem: 0,
+          branch: 1,
+          jump: 0
+        };
+        alu_input_b = rs2_data;
+        branch_target_val = pc_plus_4 + imm_val;
+        break;
+        
+      case 'J':
+        // JAL
+        imm_val = parseInt(ops[1]) * 4;
+        signals = {
+          type: 'J',
+          alu_op: 'JUMP',
+          wer: 1,
+          alu_src: 0,
+          alu2reg: 0,
+          wem: 0,
+          branch: 0,
+          jump: 1
+        };
+        isJumpTaken = true;
+        break;
+        
+      case 'U':
+        // LUI, AUIPC
+        imm_val = parseInt(ops[1]) << 12;
+        signals = {
+          type: 'U',
+          alu_op: op.toUpperCase(),
+          wer: 1,
+          alu_src: 0,
+          alu2reg: 1,
+          wem: 0,
+          branch: 0,
+          jump: 0
+        };
+        alu_input_b = imm_val;
+        break;
+    }
+    
+    // Ejecutar operación ALU
+    switch(op) {
+      // R-Type
+      case 'add': alu_result = (rs1_data + alu_input_b) | 0; break;
+      case 'sub': alu_result = (rs1_data - alu_input_b) | 0; break;
+      case 'and': alu_result = rs1_data & alu_input_b; break;
+      case 'or': alu_result = rs1_data | alu_input_b; break;
+      case 'xor': alu_result = rs1_data ^ alu_input_b; break;
+      case 'sll': alu_result = rs1_data << (alu_input_b & 0x1F); break;
+      case 'srl': alu_result = rs1_data >>> (alu_input_b & 0x1F); break;
+      case 'sra': alu_result = rs1_data >> (alu_input_b & 0x1F); break;
+      case 'slt': alu_result = (rs1_data | 0) < (alu_input_b | 0) ? 1 : 0; break;
+      case 'sltu': alu_result = (rs1_data >>> 0) < (alu_input_b >>> 0) ? 1 : 0; break;
+      
+      // I-Type ALU
+      case 'addi': alu_result = (rs1_data + alu_input_b) | 0; break;
+      case 'andi': alu_result = rs1_data & alu_input_b; break;
+      case 'ori': alu_result = rs1_data | alu_input_b; break;
+      case 'xori': alu_result = rs1_data ^ alu_input_b; break;
+      case 'slti': alu_result = (rs1_data | 0) < alu_input_b ? 1 : 0; break;
+      case 'sltiu': alu_result = (rs1_data >>> 0) < (alu_input_b >>> 0) ? 1 : 0; break;
+      case 'slli': alu_result = rs1_data << (alu_input_b & 0x1F); break;
+      case 'srli': alu_result = rs1_data >>> (alu_input_b & 0x1F); break;
+      case 'srai': alu_result = rs1_data >> (alu_input_b & 0x1F); break;
+      
+      // Load/Store/JALR
+      case 'lw': case 'sw': case 'jalr':
+      case 'lh': case 'lhu': case 'lb': case 'lbu':
+      case 'sh': case 'sb':
+        alu_result = (rs1_data + alu_input_b) | 0;
+        break;
+        
+      // U-Type
+      case 'lui': alu_result = alu_input_b; break;
+      case 'auipc': alu_result = currentPC + alu_input_b; break;
+    }
+    
+    // Manejar memoria
+    if (op.startsWith('l')) {
+      const addr = alu_result;
+      if (addr >= 0 && addr < newMem.length) {
+        data_mem_read = newMem[addr];
+      }
+    }
+    
+    // Determinar write back data
+    if (['jal', 'jalr'].includes(op)) {
+      write_data_val = pc_plus_4; // Dirección de retorno
+    } else if (['lw', 'lh', 'lb', 'lhu', 'lbu'].includes(op)) {
+      write_data_val = data_mem_read;
+    } else if (['lui', 'auipc'].includes(op) || instructionInfo.type === 'R' || 
+               (instructionInfo.type === 'I' && !op.startsWith('csr'))) {
+      write_data_val = alu_result;
+    }
+    
+    // Determinar si hay salto
+    if (instructionInfo.type === 'B') {
+      let condition = false;
+      switch(op) {
+        case 'beq': condition = rs1_data === rs2_data; break;
+        case 'bne': condition = rs1_data !== rs2_data; break;
+        case 'blt': condition = (rs1_data | 0) < (rs2_data | 0); break;
+        case 'bge': condition = (rs1_data | 0) >= (rs2_data | 0); break;
+        case 'bltu': condition = (rs1_data >>> 0) < (rs2_data >>> 0); break;
+        case 'bgeu': condition = (rs1_data >>> 0) >= (rs2_data >>> 0); break;
+      }
+      if (condition) {
+        newPc += parseInt(ops[2]);
+        isBranchTaken = true;
+      }
+    } else if (isJumpTaken) {
+      if (op === 'jal') {
+        newPc += parseInt(ops[1]);
+      } else if (op === 'jalr') {
+        const target = (rs1_data + imm_val) & ~1;
+        newPc = target / 4;
+      }
+    }
+    
+    // Actualizar wire values
+    state.wireValues = {
+      PC: currentPC,
+      PC_Plus_4: pc_plus_4,
+      Instruction: inst.raw,
+      ReadData1: rs1_data,
+      ReadData2: rs2_data,
+      Immediate: imm_val,
+      ALU_Src_B: alu_input_b,
+      ALU_Result: alu_result,
+      Data_Mem_Read: data_mem_read,
+      Branch_Target: branch_target_val,
+      Write_Data: write_data_val,
+    };
+    
+    // Write back a registros
+    if (signals.wer === 1) {
+      const rd = getRegIndex(ops[0]);
+      if (rd !== 0) {
+        newRegs[rd] = state.wireValues.Write_Data;
+      }
+    }
+    
+    // Write a memoria
+    if (signals.wem === 1) {
+      const addr = state.wireValues.ALU_Result;
+      if (addr >= 0 && addr < newMem.length) {
+        newMem[addr] = state.wireValues.ReadData2;
+      }
+    }
+    
+    // Actualizar PC si no hubo salto/jump
+    if (!isBranchTaken && !isJumpTaken) {
+      newPc++;
+    }
+    
+    // Actualizar estado
     state.registers = newRegs;
     state.memory = newMem;
     state.pc = newPc;
     state.signalStates = signals;
-    addLog(`PC=${state.pc - 1}: ${inst.raw}`, 'success');
+    
+    // Log
+    let logMsg = `PC=${currentPC / 4}: ${inst.raw}`;
+    if (isBranchTaken) logMsg += ' [SALTO TOMADO]';
+    if (isJumpTaken) logMsg += ' [SALTO INCONDICIONAL]';
+    addLog(logMsg, 'success');
+    
     updateUI();
-    drawDatapath();
+    highlightWires();
     
   } catch (error) {
-    addLog(`Error: ${error.message}`, 'error');
+    addLog(`Error ejecutando ${inst.raw}: ${error.message}`, 'error');
+    console.error(error);
     state.running = false;
+    document.getElementById('runBtn').textContent = 'Ejecutar';
     updateUI();
   }
 }
@@ -539,7 +719,7 @@ function runLoop() {
   
   if (state.pc < state.program.length) {
     executeInstruction(state.program[state.pc]);
-    setTimeout(runLoop, 600);
+    setTimeout(runLoop, 800);
   } else {
     state.running = false;
     document.getElementById('runBtn').textContent = 'Ejecutar';
@@ -553,36 +733,68 @@ function reset() {
   state.memory = Array(256).fill(0);
   state.running = false;
   state.signalStates = {};
+  state.wireValues = {
+    PC: 0,
+    PC_Plus_4: 4,
+    Instruction: "---",
+    ReadData1: 0,
+    ReadData2: 0,
+    Immediate: 0,
+    ALU_Src_B: 0,
+    ALU_Result: 0,
+    Data_Mem_Read: 0,
+    Branch_Target: 0,
+    Write_Data: 0,
+  };
   document.getElementById('runBtn').textContent = 'Ejecutar';
   addLog('Sistema reiniciado', 'success');
   updateUI();
-  drawDatapath();
+  resetWires();
 }
 
 function updateUI() {
   // Actualizar PC
-  pcValue.textContent = state.pc;
+  if (pcValue) {
+    pcValue.textContent = state.pc;
+  }
   
   // Actualizar instrucción actual
-  if (state.pc < state.program.length) {
-    currentInstruction.textContent = state.program[state.pc].raw;
-  } else {
-    currentInstruction.textContent = 'Fin del programa';
+  if (currentInstruction) {
+    if (state.pc < state.program.length) {
+      currentInstruction.textContent = state.program[state.pc].raw;
+    } else {
+      currentInstruction.textContent = 'Fin del programa';
+    }
   }
   
   // Actualizar registros
   updateRegisterList();
+  
+  // Actualizar zoom display
+  updateZoomDisplay();
+  
+  // Actualizar botones de control
+  updateControlButtons();
 }
 
 function updateRegisterList() {
-  const importantRegs = [0, 5, 6, 7, 10, 11, 12, 28, 29, 30, 31];
+  if (!registerList) return;
+  
+  const importantRegs = [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
   let html = '';
   
   for (let i of importantRegs) {
+    const abiNames = {
+      0: 'zero (x0)', 1: 'ra (x1)', 2: 'sp (x2)', 5: 't0 (x5)', 6: 't1 (x6)',
+      7: 't2 (x7)', 8: 's0/fp (x8)', 9: 's1 (x9)', 10: 'a0 (x10)', 11: 'a1 (x11)',
+      12: 'a2 (x12)', 13: 'a3 (x13)', 14: 'a4 (x14)', 15: 'a5 (x15)'
+    };
+    
     html += `
       <div class="list-item">
-        <span class="reg-name">x${i}:</span>
+        <span class="reg-name">${abiNames[i] || `x${i}`}:</span>
         <span class="reg-value">${state.registers[i]}</span>
+        <span class="reg-hex">0x${state.registers[i].toString(16).padStart(8, '0')}</span>
       </div>
     `;
   }
@@ -591,263 +803,243 @@ function updateRegisterList() {
 }
 
 function updateZoomDisplay() {
-  zoomLevel.textContent = Math.round(state.zoom * 100) + '%';
-}
-
-function drawDatapath() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
-  ctx.fillStyle = '#F5F7FA';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  
-  ctx.save();
-  ctx.translate(state.pan.x, state.pan.y);
-  ctx.scale(state.zoom, state.zoom);
-  
-  // Dibujar grid
-  drawGrid();
-  
-  // Dibujar conexiones
-  drawWires();
-  
-  // Dibujar componentes
-  for (let comp of Object.values(components)) {
-    drawComponent(comp);
-  }
-  
-  // Dibujar señales de control
-  drawControlSignals();
-  
-  ctx.restore();
-}
-
-function drawGrid() {
-  ctx.strokeStyle = 'rgba(189, 195, 199, 0.2)';
-  ctx.lineWidth = 1;
-  
-  for (let x = 0; x < datapathWidth; x += 50) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, datapathHeight);
-    ctx.stroke();
-  }
-  
-  for (let y = 0; y < datapathHeight; y += 50) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(datapathWidth, y);
-    ctx.stroke();
+  if (zoomLevel) {
+    zoomLevel.textContent = Math.round(state.zoom * 100) + '%';
   }
 }
 
-function drawComponent(comp) {
-  const active = state.signalStates.type !== undefined;
-  
-  ctx.shadowColor = active ? 'rgba(100, 150, 200, 0.3)' : 'rgba(100, 150, 200, 0.15)';
-  ctx.shadowBlur = active ? 12 : 6;
-  ctx.shadowOffsetX = 2;
-  ctx.shadowOffsetY = 2;
-  
-  ctx.fillStyle = comp.color;
-  ctx.fillRect(comp.x, comp.y, comp.w, comp.h);
-  
-  ctx.strokeStyle = active ? comp.border : comp.border + '80';
-  ctx.lineWidth = active ? 3 : 2;
-  ctx.strokeRect(comp.x, comp.y, comp.w, comp.h);
-  
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 0;
-  
-  ctx.fillStyle = '#2C3E50';
-  ctx.font = 'bold 12px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  
-  const lines = comp.label.split('\n');
-  const lineHeight = 16;
-  const startY = comp.y + comp.h / 2 - (lines.length - 1) * lineHeight / 2;
-  
-  lines.forEach((line, i) => {
-    ctx.fillText(line, comp.x + comp.w / 2, startY + i * lineHeight);
-  });
-}
-
-function drawLine(x1, y1, x2, y2, active, color = '#6A9C89', width = 2) {
-  ctx.strokeStyle = active ? color : '#BDC3C7';
-  ctx.lineWidth = active ? width : 1.5;
-  
-  if (active) {
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 6;
-  }
-  
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
-  
-  ctx.shadowBlur = 0;
-}
-
-function drawWires() {
+function updateControlButtons() {
   const signals = state.signalStates;
+  const controlSection = document.querySelector('.state-box');
   
-  // PC a Memoria de Instrucciones
-  drawLine(
-    components.pc.x + components.pc.w, components.pc.y + components.pc.h / 2,
-    components.instMem.x, components.instMem.y + 50,
-    true, '#6A9C89', 2
-  );
+  if (!controlSection || !signals.type) return;
   
-  // PC a PC+4
-  drawLine(
-    components.pc.x + components.pc.w / 2, components.pc.y + components.pc.h,
-    components.pcAdder.x + components.pcAdder.w / 2, components.pcAdder.y,
-    true, '#6A9C89', 2
-  );
+  // Crear o actualizar botones de control
+  let buttonsHTML = '<div class="control-signals"><h4>Señales de Control:</h4><div class="signal-buttons">';
   
-  // Memoria Inst a Banco Registros
-  drawLine(
-    components.instMem.x + components.instMem.w, components.instMem.y + 80,
-    components.regBank.x, components.regBank.y + 60,
-    signals.type !== undefined, '#7BA97C', 2
-  );
+  const buttons = [
+    { name: 'Wer', value: signals.wer, desc: 'Write Enable Register' },
+    { name: 'ALUsrc', value: signals.alu_src, desc: 'ALU Source (0=Imm, 1=RS2)' },
+    { name: 'ALU2reg', value: signals.alu2reg, desc: 'ALU to Register (0=Mem, 1=ALU)' },
+    { name: 'Wem', value: signals.wem, desc: 'Write Enable Memory' },
+    { name: 'Branch', value: signals.branch, desc: 'Branch Signal' },
+    { name: 'Jump', value: signals.jump || 0, desc: 'Jump Signal' },
+  ];
   
-  // Banco Registros a ALU
-  drawLine(
-    components.regBank.x + components.regBank.w, components.regBank.y + 60,
-    components.alu.x, components.alu.y + 30,
-    signals.alu_op !== undefined, '#7BA97C', 3
-  );
+  buttons.forEach(btn => {
+    const active = btn.value === 1;
+    buttonsHTML += `
+      <div class="signal-button ${active ? 'active' : ''}" title="${btn.desc}">
+        <span class="signal-name">${btn.name}</span>
+        <span class="signal-value">${active ? '1' : '0'}</span>
+      </div>
+    `;
+  });
   
-  // Banco Registros a MUX ALU_SRC
-  drawLine(
-    components.regBank.x + components.regBank.w, components.regBank.y + 120,
-    components.muxAluSrc.x, components.muxAluSrc.y + components.muxAluSrc.h / 2,
-    signals.alu_src !== undefined, '#8B7BA8', 3
-  );
+  // Agregar ALU OP
+  if (signals.alu_op) {
+    buttonsHTML += `
+      <div class="signal-button alu-op" title="ALU Operation">
+        <span class="signal-name">ALU_OP</span>
+        <span class="signal-value">${signals.alu_op}</span>
+      </div>
+    `;
+  }
   
-  // Sign Extend a MUX ALU_SRC
-  drawLine(
-    components.signExtend.x + components.signExtend.w, components.signExtend.y + 25,
-    components.muxAluSrc.x, components.muxAluSrc.y + 40,
-    signals.alu_src === 0, '#9B8FC2', 2
-  );
+  buttonsHTML += '</div></div>';
   
-  // MUX ALU_SRC a ALU
-  drawLine(
-    components.muxAluSrc.x + components.muxAluSrc.w, components.muxAluSrc.y + components.muxAluSrc.h / 2,
-    components.alu.x, components.alu.y + 70,
-    signals.alu_op !== undefined, '#457B9D', 3
-  );
-  
-  // ALU a MUX ALU2REG
-  drawLine(
-    components.alu.x + components.alu.w, components.alu.y + components.alu.h / 2,
-    components.muxAlu2Reg.x, components.muxAlu2Reg.y + components.muxAlu2Reg.h / 2,
-    signals.alu2reg === 1, '#C17B7B', 3
-  );
-  
-  // ALU a Memoria Datos
-  drawLine(
-    components.alu.x + components.alu.w, components.alu.y + components.alu.h / 2,
-    components.dataMem.x, components.dataMem.y + 60,
-    signals.wem === 1 || signals.alu2reg === 0, '#D4A574', 2
-  );
-  
-  // Memoria Datos a MUX ALU2REG
-  drawLine(
-    components.dataMem.x, components.dataMem.y + 120,
-    components.muxAlu2Reg.x + components.muxAlu2Reg.w, components.muxAlu2Reg.y + 15,
-    signals.alu2reg === 0, '#D4A574', 3
-  );
-  
-  // MUX ALU2REG a Banco Registros (writeback)
-  const wbX = components.muxAlu2Reg.x;
-  const wbY = components.muxAlu2Reg.y + components.muxAlu2Reg.h / 2;
-  drawLine(wbX, wbY, wbX - 30, wbY, signals.wer === 1, '#7BA97C', 3);
-  drawLine(wbX - 30, wbY, wbX - 30, components.regBank.y - 20, signals.wer === 1, '#7BA97C', 3);
-  drawLine(wbX - 30, components.regBank.y - 20, components.regBank.x + components.regBank.w / 2, components.regBank.y - 20, signals.wer === 1, '#7BA97C', 3);
-  drawLine(components.regBank.x + components.regBank.w / 2, components.regBank.y - 20, components.regBank.x + components.regBank.w / 2, components.regBank.y, signals.wer === 1, '#7BA97C', 3);
-  
-  // Branch connections
-  if (signals.branch === 1) {
-    drawLine(
-      components.instMem.x + components.instMem.w, components.instMem.y + 150,
-      components.ordenamiento.x, components.ordenamiento.y + 25,
-      true, '#D4A574', 2
-    );
-    
-    drawLine(
-      components.ordenamiento.x, components.ordenamiento.y + 25,
-      components.sumadorBranch.x + components.sumadorBranch.w, components.sumadorBranch.y + 25,
-      true, '#457B9D', 3
-    );
-    
-    drawLine(
-      components.pcAdder.x, components.pcAdder.y + 25,
-      components.sumadorBranch.x + components.sumadorBranch.w, components.sumadorBranch.y + 35,
-      true, '#6A9C89', 2
-    );
-    
-    drawLine(
-      components.sumadorBranch.x, components.sumadorBranch.y + 25,
-      components.muxPC.x + 20, components.muxPC.y + 50,
-      true, '#457B9D', 2
-    );
+  // Insertar después del estado actual
+  const existingSignals = controlSection.querySelector('.control-signals');
+  if (existingSignals) {
+    existingSignals.innerHTML = buttonsHTML;
+  } else {
+    controlSection.innerHTML += buttonsHTML;
   }
 }
 
-function drawControlSignals() {
+// ==================== FUNCIONES SVG ====================
+
+function getSVGElement(id) {
+  if (!svgElement) return null;
+  
+  // Buscar en el SVG principal y en los SVGs internos
+  let element = svgElement.getElementById(id);
+  if (!element) {
+    const innerSVG = svgElement.querySelector('svg');
+    if (innerSVG) {
+      element = innerSVG.getElementById(id);
+    }
+  }
+  return element;
+}
+
+function highlightWires() {
+  if (!state.svgInitialized) {
+    console.warn("⚠️ SVG no inicializado, no se pueden resaltar cables");
+    return;
+  }
+  
+  resetWires();
+  
   const signals = state.signalStates;
   if (!signals.type) return;
   
-  const x = 500;
-  const y = 550;
-  const spacing = 80;
+  console.log(`🎨 Activando camino tipo ${signals.type}`);
   
-  const controlLabels = [
-    { name: 'WER', value: signals.wer },
-    { name: 'ALU_SRC', value: signals.alu_src },
-    { name: 'ALU2REG', value: signals.alu2reg },
-    { name: 'WEM', value: signals.wem },
-    { name: 'BRANCH', value: signals.branch }
-  ];
+  // Colores por tipo de instrucción
+  const colors = {
+    'R': '#FF1493',  // Rosa
+    'I': '#00FF00',  // Verde
+    'L': '#FFD700',  // Amarillo
+    'S': '#FF4500',  // Naranja-rojo
+    'B': '#00BFFF',  // Azul
+    'J': '#9B59B6',  // Púrpura
+    'U': '#FF69B4'   // Rosa claro
+  };
   
-  ctx.font = 'bold 11px monospace';
-  ctx.textAlign = 'center';
+  const color = colors[signals.type] || '#6A9C89';
+  const wiresToActivate = getWiresForType(signals.type);
   
-  controlLabels.forEach((sig, i) => {
-    const active = sig.value === 1;
-    const cx = x + i * spacing;
-    
-    ctx.fillStyle = active ? '#7BA97C' : '#E8E8E8';
-    ctx.beginPath();
-    ctx.arc(cx, y, 10, 0, Math.PI * 2);
-    ctx.fill();
-    
-    if (active) {
-      ctx.strokeStyle = '#5A8A5C';
-      ctx.lineWidth = 2;
-      ctx.shadowColor = '#7BA97C';
-      ctx.shadowBlur = 8;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-    } else {
-      ctx.strokeStyle = '#BDC3C7';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+  wiresToActivate.forEach(wireId => {
+    activateWire(wireId, color);
+  });
+}
+
+function getWiresForType(type) {
+  const wireMap = {
+    'R': [
+      'wire-pc-to-imem',
+      'wire-imem-to-reg',
+      'wire-reg-rs1-to-alu',
+      'wire-reg-rs2-to-mux',
+      'wire-mux-to-alu',
+      'wire-alu-to-mux2',
+      'wire-wb-to-reg'
+    ],
+    'I': [
+      'wire-pc-to-imem',
+      'wire-imem-to-reg',
+      'wire-imem-to-signext',
+      'wire-reg-rs1-to-alu',
+      'wire-signext-to-mux',
+      'wire-mux-to-alu',
+      'wire-alu-to-mux2',
+      'wire-wb-to-reg'
+    ],
+    'L': [
+      'wire-pc-to-imem',
+      'wire-imem-to-reg',
+      'wire-imem-to-signext',
+      'wire-reg-rs1-to-alu',
+      'wire-signext-to-mux',
+      'wire-mux-to-alu',
+      'wire-alu-to-dmem',
+      'wire-dmem-to-mux2',
+      'wire-wb-to-reg'
+    ],
+    'S': [
+      'wire-pc-to-imem',
+      'wire-imem-to-reg',
+      'wire-imem-to-signext',
+      'wire-reg-rs1-to-alu',
+      'wire-reg-to-dmem',
+      'wire-signext-to-mux',
+      'wire-mux-to-alu',
+      'wire-alu-to-dmem'
+    ],
+    'B': [
+      'wire-pc-to-imem',
+      'wire-imem-to-reg',
+      'wire-imem-to-branch',
+      'wire-reg-rs1-to-alu',
+      'wire-reg-rs2-to-mux',
+      'wire-mux-to-alu',
+      'wire-branchoff-to-add',
+      'wire-pc4-to-branchadd',
+      'wire-branchadd-to-mux'
+    ],
+    'J': [
+      'wire-pc-to-imem',
+      'wire-imem-to-branch',
+      'wire-pc4-to-branchadd',
+      'wire-branchadd-to-mux',
+      'wire-wb-to-reg'
+    ]
+  };
+  
+  return wireMap[type] || [];
+}
+
+function activateWire(wireId, color) {
+  const wire = getSVGElement(wireId);
+  if (wire) {
+    // Guardar color original si no existe
+    if (!wire.hasAttribute('data-original-stroke')) {
+      const originalStroke = wire.getAttribute('stroke') || '#6A9C89';
+      wire.setAttribute('data-original-stroke', originalStroke);
     }
     
-    ctx.fillStyle = active ? '#2C5F2D' : '#7F8C8D';
-    ctx.fillText(sig.name, cx, y + 25);
-  });
+    // Aplicar nuevo estilo
+    wire.setAttribute('stroke', color);
+    wire.setAttribute('stroke-width', '4');
+    wire.setAttribute('opacity', '1');
+    wire.classList.add('active');
+    
+    return true;
+  } else {
+    console.warn(`Cable no encontrado: ${wireId}`);
+    return false;
+  }
+}
+
+function resetWires() {
+  if (!svgElement || !state.svgInitialized) return;
   
-  if (signals.alu_op) {
-    ctx.font = 'bold 13px monospace';
-    ctx.fillStyle = '#C17B7B';
-    ctx.textAlign = 'left';
-    ctx.fillText(`ALU_OP: ${signals.alu_op}`, x + controlLabels.length * spacing + 10, y + 5);
+  // Buscar todos los cables en todos los SVGs
+  const wires = [];
+  
+  // En el SVG principal
+  wires.push(...svgElement.querySelectorAll('.wire'));
+  
+  // En SVGs internos
+  const innerSVG = svgElement.querySelector('svg');
+  if (innerSVG) {
+    wires.push(...innerSVG.querySelectorAll('.wire'));
+  }
+  
+  wires.forEach(wire => {
+    wire.classList.remove('active');
+    const originalStroke = wire.getAttribute('data-original-stroke');
+    if (originalStroke) {
+      wire.setAttribute('stroke', originalStroke);
+    } else {
+      // Colores por defecto basados en el ID
+      if (wire.id.includes('pc')) wire.setAttribute('stroke', '#6A9C89');
+      else if (wire.id.includes('reg')) wire.setAttribute('stroke', '#7BA97C');
+      else if (wire.id.includes('alu')) wire.setAttribute('stroke', '#C17B7B');
+      else if (wire.id.includes('dmem')) wire.setAttribute('stroke', '#D4A574');
+      else if (wire.id.includes('signext')) wire.setAttribute('stroke', '#9B8FC2');
+      else if (wire.id.includes('branch')) wire.setAttribute('stroke', '#457B9D');
+      else if (wire.id.includes('control')) wire.setAttribute('stroke', '#9B8FC2');
+      else wire.setAttribute('stroke', '#6A9C89');
+    }
+    wire.setAttribute('stroke-width', '2');
+    wire.setAttribute('opacity', '0.3');
+  });
+}
+
+// Función de debug para ver todos los cables
+function debugWires() {
+  console.log("🔌 Lista de cables en el SVG:");
+  
+  // Buscar en el SVG principal
+  const wires1 = svgElement.querySelectorAll('[id^="wire-"]');
+  wires1.forEach(w => console.log(`  - ${w.id}`));
+  
+  // Buscar en SVGs internos
+  const innerSVG = svgElement.querySelector('svg');
+  if (innerSVG) {
+    const wires2 = innerSVG.querySelectorAll('[id^="wire-"]');
+    wires2.forEach(w => console.log(`  - ${w.id}`));
   }
 }

@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simulador RISC-V</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
     <div id="app">
         <header>
@@ -16,26 +18,22 @@
             <div class="sidebar">
                 <div class="section">
                     <h3>Editor de Código</h3>
-                    <textarea id="codeEditor" spellcheck="false"># Ejemplo: Suma de números
-addi x5, x0, 10
-addi x6, x0, 20
-add x7, x5, x6
-sw x7, 0(x0)</textarea>
+                    <textarea id="codeEditor" spellcheck="false"></textarea>
                 </div>
 
                 <div class="section">
                     <div class="controls">
-                        <button id="loadBtn" class="btn-load">Guardar</button>
+                        <button id="loadBtn" class="btn-load">Cargar</button>
                         <button id="stepBtn" class="btn-step">Paso</button>
-                        <button id="runBtn" class="btn-run" onclick="convert()">Ejecutar</button>
+                        <button id="runBtn" class="btn-run">Ejecutar</button>
                         <button id="resetBtn" class="btn-reset">Reiniciar</button>
                     </div>
                 </div>
 
                 <div class="section">
                     <div class="state-box">
-                        <div><span class="label">Contador de Programa:</span> <span id="pcValue">0</span></div>
-                        <div><span class="label">Instrucción:</span> <span id="currentInstruction">Sin instrucción</span></div>
+                        <div><span class="label">PC:</span> <span id="pcValue">0</span></div>
+                        <div><span class="label">Instrucción:</span> <span id="currentInstruction">-</span></div>
                     </div>
                 </div>
 
@@ -53,20 +51,308 @@ sw x7, 0(x0)</textarea>
                     <span class="zoom-level" id="zoomLevel">100%</span>
                 </div>
                 <div id="svgContainer">
-                    <svg id="datapathSVG" width="1100" height="700" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                            <filter id="shadow">
-                                <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.3"/>
-                            </filter>
-                        </defs>
-                        <g id="mainGroup"></g>
+                    <svg id="datapathSVG" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 700" width="100%"
+                        height="100%">
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 700" width="1400" height="700">
+                            <defs>
+                                <style>
+                                    .component {
+                                        cursor: pointer;
+                                        transition: all 0.2s;
+                                    }
+
+                                    .component:hover {
+                                        filter: brightness(1.1);
+                                    }
+
+                                    .wire {
+                                        opacity: 0.3;
+                                        transition: all 0.3s;
+                                        stroke-width: 2;
+                                    }
+
+                                    .wire.active {
+                                        opacity: 1;
+                                        stroke-width: 4;
+                                    }
+
+                                    @keyframes pulse {
+
+                                        0%,
+                                        100% {
+                                            stroke-width: 3;
+                                        }
+
+                                        50% {
+                                            stroke-width: 5;
+                                        }
+                                    }
+
+                                    .wire.active {
+                                        animation: pulse 0.8s ease-in-out infinite;
+                                    }
+                                </style>
+
+                                <filter id="shadow">
+                                    <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.3" />
+                                </filter>
+
+                                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3"
+                                    orient="auto">
+                                    <polygon points="0 0, 10 3, 0 6" fill="#6A9C89" />
+                                </marker>
+                            </defs>
+
+                            <!-- Grupo principal para transformaciones (zoom/pan) -->
+                            <g id="mainGroup">
+
+                                <!-- ==================== COMPONENTES ==================== -->
+
+                                <!-- PC (Program Counter) -->
+                                <g id="comp-pc" class="component" data-type="pc">
+                                    <rect x="50" y="100" width="80" height="50" fill="#B8E0D2" stroke="#6A9C89"
+                                        stroke-width="2" rx="5" filter="url(#shadow)" />
+                                    <text x="90" y="130" text-anchor="middle" font-family="monospace" font-size="14"
+                                        font-weight="bold" fill="#2C3E50">PC</text>
+                                </g>
+
+                                <!-- PC + 4 Adder -->
+                                <g id="comp-pcAdder" class="component" data-type="adder">
+                                    <rect x="50" y="200" width="80" height="50" fill="#A8DADC" stroke="#457B9D"
+                                        stroke-width="2" rx="5" filter="url(#shadow)" />
+                                    <text x="90" y="225" text-anchor="middle" font-family="monospace" font-size="12"
+                                        font-weight="bold" fill="#2C3E50">PC+4</text>
+                                    <text x="90" y="240" text-anchor="middle" font-family="monospace" font-size="10"
+                                        fill="#2C3E50">ADD</text>
+                                </g>
+
+                                <!-- MUX PC -->
+                                <g id="comp-muxPC" class="component" data-type="mux">
+                                    <polygon points="100,30 140,30 130,90 110,90" fill="#D4D4D4" stroke="#8E8E8E"
+                                        stroke-width="2" filter="url(#shadow)" />
+                                    <text x="120" y="65" text-anchor="middle" font-family="monospace" font-size="11"
+                                        font-weight="bold" fill="#2C3E50">MUX</text>
+                                </g>
+
+                                <!-- Memoria de Instrucciones -->
+                                <g id="comp-instMem" class="component" data-type="memory">
+                                    <rect x="220" y="80" width="140" height="120" fill="#D5B9E0" stroke="#8B7BA8"
+                                        stroke-width="2" rx="5" filter="url(#shadow)" />
+                                    <text x="290" y="130" text-anchor="middle" font-family="monospace" font-size="13"
+                                        font-weight="bold" fill="#2C3E50">Instruction</text>
+                                    <text x="290" y="150" text-anchor="middle" font-family="monospace" font-size="13"
+                                        font-weight="bold" fill="#2C3E50">Memory</text>
+                                </g>
+
+                                <!-- Sign Extend -->
+                                <g id="comp-signExtend" class="component" data-type="extend">
+                                    <rect x="400" y="280" width="100" height="50" fill="#E8DFF5" stroke="#9B8FC2"
+                                        stroke-width="2" rx="5" filter="url(#shadow)" />
+                                    <text x="450" y="305" text-anchor="middle" font-family="monospace" font-size="11"
+                                        font-weight="bold" fill="#2C3E50">Sign</text>
+                                    <text x="450" y="320" text-anchor="middle" font-family="monospace" font-size="11"
+                                        font-weight="bold" fill="#2C3E50">Extend</text>
+                                </g>
+
+                                <!-- Banco de Registros -->
+                                <g id="comp-regBank" class="component" data-type="registers">
+                                    <rect x="480" y="80" width="150" height="120" fill="#C7E9C0" stroke="#7BA97C"
+                                        stroke-width="2" rx="5" filter="url(#shadow)" />
+                                    <text x="555" y="130" text-anchor="middle" font-family="monospace" font-size="13"
+                                        font-weight="bold" fill="#2C3E50">Register</text>
+                                    <text x="555" y="150" text-anchor="middle" font-family="monospace" font-size="13"
+                                        font-weight="bold" fill="#2C3E50">File</text>
+                                </g>
+
+                                <!-- MUX ALU Source -->
+                                <g id="comp-muxAluSrc" class="component" data-type="mux">
+                                    <polygon points="670,150 710,150 700,210 680,210" fill="#D4D4D4" stroke="#8E8E8E"
+                                        stroke-width="2" filter="url(#shadow)" />
+                                    <text x="690" y="185" text-anchor="middle" font-family="monospace" font-size="10"
+                                        font-weight="bold" fill="#2C3E50">MUX</text>
+                                </g>
+
+                                <!-- ALU -->
+                                <g id="comp-alu" class="component" data-type="alu">
+                                    <polygon points="740,120 860,120 860,220 740,220 760,170" fill="#F4C4C4"
+                                        stroke="#C17B7B" stroke-width="2" filter="url(#shadow)" />
+                                    <text x="800" y="175" text-anchor="middle" font-family="monospace" font-size="16"
+                                        font-weight="bold" fill="#2C3E50">ALU</text>
+                                </g>
+
+                                <!-- MUX ALU to Reg -->
+                                <g id="comp-muxAlu2Reg" class="component" data-type="mux">
+                                    <polygon points="900,130 940,130 930,190 910,190" fill="#D4D4D4" stroke="#8E8E8E"
+                                        stroke-width="2" filter="url(#shadow)" />
+                                    <text x="920" y="165" text-anchor="middle" font-family="monospace" font-size="10"
+                                        font-weight="bold" fill="#2C3E50">MUX</text>
+                                </g>
+
+                                <!-- Memoria de Datos -->
+                                <g id="comp-dataMem" class="component" data-type="memory">
+                                    <rect x="980" y="80" width="140" height="120" fill="#FFD6A5" stroke="#D4A574"
+                                        stroke-width="2" rx="5" filter="url(#shadow)" />
+                                    <text x="1050" y="130" text-anchor="middle" font-family="monospace" font-size="13"
+                                        font-weight="bold" fill="#2C3E50">Data</text>
+                                    <text x="1050" y="150" text-anchor="middle" font-family="monospace" font-size="13"
+                                        font-weight="bold" fill="#2C3E50">Memory</text>
+                                </g>
+
+                                <!-- Branch Offset -->
+                                <g id="comp-ordenamiento" class="component" data-type="shifter">
+                                    <rect x="220" y="280" width="100" height="50" fill="#FFE5B4" stroke="#D4A574"
+                                        stroke-width="2" rx="5" filter="url(#shadow)" />
+                                    <text x="270" y="300" text-anchor="middle" font-family="monospace" font-size="11"
+                                        font-weight="bold" fill="#2C3E50">Branch</text>
+                                    <text x="270" y="315" text-anchor="middle" font-family="monospace" font-size="11"
+                                        font-weight="bold" fill="#2C3E50">Offset</text>
+                                </g>
+
+                                <!-- Sumador Branch -->
+                                <g id="comp-sumadorBranch" class="component" data-type="adder">
+                                    <rect x="150" y="280" width="80" height="50" fill="#A8DADC" stroke="#457B9D"
+                                        stroke-width="2" rx="5" filter="url(#shadow)" />
+                                    <text x="190" y="300" text-anchor="middle" font-family="monospace" font-size="11"
+                                        font-weight="bold" fill="#2C3E50">Branch</text>
+                                    <text x="190" y="315" text-anchor="middle" font-family="monospace" font-size="11"
+                                        font-weight="bold" fill="#2C3E50">ADD</text>
+                                </g>
+
+                                <!-- Unidad de Control -->
+                                <g id="comp-control" class="component" data-type="control">
+                                    <rect x="450" y="400" width="200" height="70" fill="#E0D4F7" stroke="#9B8FC2"
+                                        stroke-width="2" rx="5" filter="url(#shadow)" />
+                                    <text x="550" y="430" text-anchor="middle" font-family="monospace" font-size="14"
+                                        font-weight="bold" fill="#2C3E50">Control Unit</text>
+                                </g>
+
+                                <!-- ==================== CABLES/WIRES ==================== -->
+
+                                <!-- PC to MUX PC -->
+                                <path id="wire-mux-to-pc" class="wire" d="M 120 90 L 120 110 L 90 110 L 90 100"
+                                    stroke="#6A9C89" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+                                <!-- PC to Instruction Memory -->
+                                <path id="wire-pc-to-imem" class="wire" d="M 130 125 L 220 125" stroke="#6A9C89"
+                                    stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+                                <!-- PC to PC+4 -->
+                                <path id="wire-pc-to-pcadd" class="wire" d="M 90 150 L 90 200" stroke="#6A9C89"
+                                    stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+                                <!-- PC+4 to MUX PC -->
+                                <path id="wire-pcadd-to-mux" class="wire"
+                                    d="M 90 200 L 90 180 L 80 180 L 80 60 L 110 60 L 110 90" stroke="#457B9D"
+                                    stroke-width="2" fill="none" />
+
+                                <!-- Instruction Memory to Register Bank -->
+                                <path id="wire-imem-to-reg" class="wire" d="M 360 120 L 400 120 L 400 110 L 480 110"
+                                    stroke="#8B7BA8" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+                                <!-- Instruction Memory to Control Unit -->
+                                <path id="wire-imem-to-control" class="wire" d="M 290 200 L 290 380 L 550 380 L 550 400"
+                                    stroke="#8B7BA8" stroke-width="2" fill="none" marker-end="url(#arrowhead)"
+                                    stroke-dasharray="3,3" opacity="0.5" />
+
+                                <!-- Instruction Memory to Sign Extend -->
+                                <path id="wire-imem-to-signext" class="wire" d="M 320 200 L 320 240 L 450 240 L 450 280"
+                                    stroke="#9B8FC2" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+                                <!-- Instruction Memory to Branch Offset -->
+                                <path id="wire-imem-to-branch" class="wire" d="M 270 200 L 270 280" stroke="#D4A574"
+                                    stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+                                <!-- Register Bank RS1 to ALU -->
+                                <path id="wire-reg-rs1-to-alu" class="wire" d="M 630 110 L 700 110 L 700 140 L 740 140"
+                                    stroke="#7BA97C" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+                                <!-- Register Bank RS2 to MUX ALU Src -->
+                                <path id="wire-reg-rs2-to-mux" class="wire" d="M 630 160 L 650 160 L 650 190 L 680 190"
+                                    stroke="#7BA97C" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+                                <!-- Register Bank RS2 to Data Memory (for SW) -->
+                                <path id="wire-reg-to-dmem" class="wire"
+                                    d="M 630 180 L 650 180 L 650 260 L 960 260 L 960 160 L 980 160" stroke="#7BA97C"
+                                    stroke-width="1.5" fill="none" stroke-dasharray="3,3" />
+
+                                <!-- Sign Extend to MUX ALU Src -->
+                                <path id="wire-signext-to-mux" class="wire"
+                                    d="M 450 305 L 450 350 L 660 350 L 660 170 L 680 170" stroke="#9B8FC2"
+                                    stroke-width="2" fill="none" />
+
+                                <!-- MUX ALU Src to ALU -->
+                                <path id="wire-mux-to-alu" class="wire" d="M 710 180 L 740 180" stroke="#8E8E8E"
+                                    stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+                                <!-- ALU to MUX ALU2Reg -->
+                                <path id="wire-alu-to-mux2" class="wire" d="M 860 160 L 910 160" stroke="#C17B7B"
+                                    stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+                                <!-- ALU to Data Memory -->
+                                <path id="wire-alu-to-dmem" class="wire" d="M 860 140 L 890 140 L 890 120 L 980 120"
+                                    stroke="#C17B7B" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+                                <!-- Data Memory to MUX ALU2Reg -->
+                                <path id="wire-dmem-to-mux2" class="wire"
+                                    d="M 1050 200 L 1050 240 L 870 240 L 870 170 L 910 170" stroke="#D4A574"
+                                    stroke-width="2" fill="none" />
+
+                                <!-- MUX ALU2Reg to Register Bank (Write Back) -->
+                                <path id="wire-wb-to-reg" class="wire" d="M 920 130 L 920 50 L 555 50 L 555 80"
+                                    stroke="#7BA97C" stroke-width="2" fill="none" marker-end="url(#arrowhead)"
+                                    stroke-dasharray="5,5" />
+
+                                <!-- Branch Offset to Branch Adder -->
+                                <path id="wire-branchoff-to-add" class="wire" d="M 220 305 L 190 305" stroke="#D4A574"
+                                    stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+                                <!-- PC+4 to Branch Adder -->
+                                <path id="wire-pc4-to-branchadd" class="wire" d="M 130 225 L 150 225 L 150 295"
+                                    stroke="#457B9D" stroke-width="2" fill="none" />
+
+                                <!-- Branch Adder to MUX PC -->
+                                <path id="wire-branchadd-to-mux" class="wire" d="M 150 305 L 140 305 L 140 70 L 130 70"
+                                    stroke="#457B9D" stroke-width="2" fill="none" stroke-dasharray="4,4" />
+
+                                <!-- Control signals (líneas de control punteadas) -->
+                                <path id="control-to-muxpc" class="wire" d="M 550 400 L 550 360 L 120 360 L 120 250"
+                                    stroke="#9B8FC2" stroke-width="1.5" fill="none" stroke-dasharray="2,2"
+                                    opacity="0.4" />
+                                <path id="control-to-regbank" class="wire" d="M 555 400 L 555 200" stroke="#9B8FC2"
+                                    stroke-width="1.5" fill="none" stroke-dasharray="2,2" opacity="0.4" />
+                                <path id="control-to-alusrc" class="wire" d="M 600 400 L 600 370 L 690 370 L 690 270"
+                                    stroke="#9B8FC2" stroke-width="1.5" fill="none" stroke-dasharray="2,2"
+                                    opacity="0.4" />
+                                <path id="control-to-alu" class="wire" d="M 620 400 L 620 375 L 800 375 L 800 270"
+                                    stroke="#9B8FC2" stroke-width="1.5" fill="none" stroke-dasharray="2,2"
+                                    opacity="0.4" />
+                                <path id="control-to-dmem" class="wire" d="M 650 400 L 650 380 L 1050 380 L 1050 270"
+                                    stroke="#9B8FC2" stroke-width="1.5" fill="none" stroke-dasharray="2,2"
+                                    opacity="0.4" />
+                                <path id="control-to-mux2reg" class="wire" d="M 640 400 L 640 385 L 920 385 L 920 270"
+                                    stroke="#9B8FC2" stroke-width="1.5" fill="none" stroke-dasharray="2,2"
+                                    opacity="0.4" />
+
+                                <!-- Etiquetas de puertos (opcionales, pequeñas) -->
+                                <text x="480" y="95" font-family="monospace" font-size="8" fill="#555">Read</text>
+                                <text x="555" y="75" font-family="monospace" font-size="8" fill="#555">Write</text>
+                                <text x="740" y="110" font-family="monospace" font-size="8" fill="#555">A</text>
+                                <text x="740" y="210" font-family="monospace" font-size="8" fill="#555">B</text>
+                                <text x="870" y="170" font-family="monospace" font-size="8" fill="#555">Result</text>
+                                <text x="980" y="110" font-family="monospace" font-size="8" fill="#555">Addr</text>
+                                <text x="980" y="170" font-family="monospace" font-size="8" fill="#555">Data</text>
+
+                            </g>
+                        </svg>
                     </svg>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="js/nuevo.js"></script>
+    <script src="js/simulator.js"></script>
     <script src="js/logica_bin.js"></script>
 </body>
+
 </html>
