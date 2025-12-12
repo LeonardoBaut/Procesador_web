@@ -21,18 +21,18 @@
                 <div class="section">
                     <h3>Editor de Código</h3>
                     <textarea id="input" spellcheck="false"># Ejemplo: Suma de números
-addi x5, x0, 10
-addi x6, x0, 20
-add x7, x5, x6
-sw x7, 0(x0)</textarea>
+                        addi x5, x0, 10
+                        addi x6, x0, 20
+                        add x7, x5, x6
+                        sw x7, 0(x0)</textarea>
                 </div>
 
                 <!-- Controles -->
                 <div class="section">
                     <div class="controls">
                         <button id="loadBtn" class="btn-load">Guardar</button>
-                        <button id="stepBtn" class="btn-step">Paso</button>
-                        <button id="runBtn" class="btn-run" onclick="convert()">Ejecutar</button>
+                        <button id="stepBtn" class="btn-step" aria-label="Ejecutar paso a paso">Paso</button>
+                        <button id="runBtn" class="btn-run"  >Ejecutar</button><!--onclick="convert()"-->
                         <button id="resetBtn" class="btn-reset">Reiniciar</button>
                     </div>
                 </div>
@@ -45,7 +45,7 @@ sw x7, 0(x0)</textarea>
                                 instrucción</span></div>
                     </div>
                 </div>
-
+                
                 <!-- Registros -->
                 <div class="section">
                     <h3>Registros</h3>

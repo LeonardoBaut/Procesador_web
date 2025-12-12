@@ -6,6 +6,22 @@ let state = {
   program: [],
   running: false,
   signalStates: {},
+  
+  // Estructura para almacenar los valores que fluyen por las líneas
+  wireValues: {
+    PC: 0,
+    PC_Plus_4: 4,
+    Instruction: "---",
+    ReadData1: 0,
+    ReadData2: 0,
+    Immediate: 0,
+    ALU_Src_B: 0,
+    ALU_Result: 0,
+    Data_Mem_Read: 0,
+    Branch_Target: 0,
+    Write_Data: 0, 
+  },
+  
   logs: [],
   zoom: 1,
   pan: { x: 50, y: 50 },
@@ -25,15 +41,47 @@ const components = {
   instMem: { x: 220, y: 50, w: 140, h: 180, label: 'Memoria de\nInstrucciones', color: '#D5B9E0', border: '#8B7BA8' },
   regBank: { x: 480, y: 80, w: 150, h: 160, label: 'Banco de\nRegistros', color: '#C7E9C0', border: '#7BA97C' },
   signExtend: { x: 400, y: 280, w: 100, h: 50, label: 'Sign\nExtend', color: '#E8DFF5', border: '#9B8FC2' },
-  muxImmRd: { x: 400, y: 200, w: 40, h: 60, label: 'MUX \nImm', color: '#D4D4D4', border: '#8E8E8E' },
+  muxImmRd: { x: 400, y: 200, w: 40, h: 60, label: 'MUX \nImm', color: '#D4D4D4', border: '#8E8E8E' }, 
   muxAluSrc: { x: 670, y: 150, w: 40, h: 60, label: 'MUX \nALU \nsrc', color: '#D4D4D4', border: '#8E8E8E' },
   alu: { x: 740, y: 120, w: 120, h: 100, label: 'ALU', color: '#F4C4C4', border: '#C17B7B' },
   muxAlu2Reg: { x: 900, y: 130, w: 40, h: 60, label: 'MUX \nALU \n2reg', color: '#D4D4D4', border: '#8E8E8E' },
   dataMem: { x: 980, y: 80, w: 140, h: 160, label: 'Memoria de\nDatos', color: '#FFD6A5', border: '#D4A574' },
-  ordenamiento: { x: 220, y: 280, w: 100, h: 50, label: 'Branch\nOffset', color: '#FFE5B4', border: '#D4A574' },
-  sumadorBranch: { x: 150, y: 280, w: 80, h: 50, label: 'PC+\nOffset', color: '#A8DADC', border: '#457B9D' },
+  BranchImmGen: { x: 220, y: 280, w: 100, h: 50, label: 'Imm\nBranch Gen', color: '#FFE5B4', border: '#D4A574' },
+  BranchAdder: { x: 150, y: 280, w: 80, h: 50, label: 'Branch\nAdder', color: '#A8DADC', border: '#457B9D' },
   control: { x: 450, y: 380, w: 200, h: 80, label: 'Unidad de Control', color: '#E0D4F7', border: '#9B8FC2' }
 };
+
+// Mapeo de coordenadas y etiquetas para las líneas (wires)
+const wireMap = {
+    // [Value Key, Label Text, X, Y, Alignment ('L'eft, 'R'ight, 'C'enter)]
+    
+    // --- FETCH ---
+    PC_Value:     ['PC', 'PC:', components.pc.x + components.pc.w + 10, components.pc.y + components.pc.h / 2 - 15, 'L'],
+    PC_Plus_4:    ['PC_Plus_4', 'PC+4:', components.pcAdder.x + components.pcAdder.w + 10, components.pcAdder.y + components.pcAdder.h / 2, 'L'],
+    
+    // --- DECODE ---
+    Instruction_RegBank: ['Instruction', 'Inst (Asm):', components.regBank.x - 10, components.regBank.y - 15, 'R'],
+    Read_Data_1:  ['ReadData1', 'RS1 Data:', components.regBank.x + components.regBank.w + 10, components.regBank.y + 60, 'L'],
+    Read_Data_2:  ['ReadData2', 'RS2 Data:', components.regBank.x + components.regBank.w + 10, components.regBank.y + 120, 'L'],
+    Immediate_Value:['Immediate', 'Imm (SE):', components.signExtend.x + components.signExtend.w + 10, components.signExtend.y + components.signExtend.h / 2, 'L'],
+    
+    // --- EXECUTE ---
+    ALU_Input_A:  ['ReadData1', 'ALU A:', components.alu.x - 10, components.alu.y + 30, 'R'],
+    ALU_Input_B:  ['ALU_Src_B', 'ALU B:', components.alu.x - 10, components.alu.y + 70, 'R'],
+    ALU_Result_Out:['ALU_Result', 'ALU Res:', components.alu.x + components.alu.w + 10, components.alu.y + components.alu.h / 2, 'L'],
+    
+    // --- MEMORY ---
+    Mem_Address:  ['ALU_Result', 'Addr:', components.dataMem.x - 10, components.dataMem.y + 60, 'R'],
+    Mem_Write_Data:['ReadData2', 'WD (RS2):', components.dataMem.x + components.dataMem.w + 10, components.dataMem.y + 120, 'L'],
+    Mem_Read_Data:['Data_Mem_Read', 'RD (Mem):', components.dataMem.x + components.dataMem.w + 10, components.dataMem.y + 150, 'L'],
+    
+    // --- WRITE BACK (Result of MUX) ---
+    Write_Back_Data:['Write_Data', 'WB Data:', components.muxAlu2Reg.x + components.muxAlu2Reg.w + 10, components.muxAlu2Reg.y + components.muxAlu2Reg.h / 2, 'L'],
+
+    // --- BRANCH ---
+    Branch_Target:['Branch_Target', 'Branch Target:', components.BranchAdder.x - 10, components.BranchAdder.y + components.BranchAdder.h / 2, 'R'],
+};
+
 
 // Referencias a elementos del DOM
 let canvas, ctx, input, pcValue, currentInstruction, registerList, zoomLevel;
@@ -127,12 +175,18 @@ addi x10, x0, 0
 addi x11, x0, 1
 addi x5, x0, 500
 addi x7, x0, 0
+
+loop:
 add x12, x10, x11
 addi x7, x7, 1
-bge x12, x5, 2
+bge x12, x5, end
+
 add x10, x0, x11
 add x11, x0, x12
-beq x0, x0, -5`;
+beq x0, x0, loop
+
+end:
+# Programa terminado`;
   input.value = initialCode;
 }
 
@@ -162,7 +216,8 @@ function parseInstruction(line) {
     return {
       raw: line,
       opcode: loadStoreMatch[1].toLowerCase(),
-      operands: [loadStoreMatch[2], loadStoreMatch[3], loadStoreMatch[4]]
+      // [rd/rs2, offset, rs1]
+      operands: [loadStoreMatch[2], loadStoreMatch[3], loadStoreMatch[4]] 
     };
   }
   
@@ -178,31 +233,94 @@ function parseInstruction(line) {
 
 function getRegIndex(reg) {
   if (reg.startsWith('x')) return parseInt(reg.substring(1));
-  return 0;
+  if (reg === 'x0') return 0;
+  // Fallback for other non-xN registers
+  return 0; 
 }
+
+// Función placeholder para collectLabels
+function collectLabels(lines) {
+    const labels = {};
+    let pc_bytes = 0;
+    
+    for (const line of lines) {
+        let content = line.trim().split('#')[0].trim();
+        if (content.endsWith(':')) {
+            const label = content.slice(0, -1);
+            labels[label] = pc_bytes;
+        } else if (content) {
+            // Asumimos que cada línea válida es una instrucción de 4 bytes
+            pc_bytes += 4;
+        }
+    }
+    return labels;
+}
+
 
 function loadCode() {
-  const code = input.value;
-  const lines = code.split('\n');
-  const newProgram = [];
-  
-  for (let line of lines) {
-    const inst = parseInstruction(line);
-    if (inst) newProgram.push(inst);
-  }
-  
-  state.pc = 0;
-  state.registers = Array(32).fill(0);
-  state.memory = Array(256).fill(0);
-  state.signalStates = {};
-  state.program = newProgram;
-  state.logs = [];
-  
-  addLog(`Cargadas ${newProgram.length} instrucciones`, 'success');
-  updateUI();
-  drawDatapath();
+    const code = input.value;
+    const lines = code.split('\n');
+    const newProgram = [];
+    
+    // 1. Recoger etiquetas: labels es un mapa { etiqueta: PC_en_bytes }
+    const labels = collectLabels(lines); 
+    let current_pc_index = 0; // Índice de la instrucción en state.program (PC en unidades de instrucción)
+    
+    // 2. Iterar las líneas para construir el programa y resolver saltos
+    for (let line of lines) {
+        let line_content = line.split("#")[0].trim();
+        // Ignorar líneas vacías o líneas que solo son una etiqueta (ya procesadas en collectLabels)
+        if (line_content === "" || line_content.endsWith(":")) continue; 
+
+        // Intentar parsear la instrucción
+        const inst = parseInstruction(line);
+
+        if (inst) {
+            // Lógica para resolver etiquetas
+            const lastOperandIndex = inst.operands.length - 1;
+
+            if (['beq', 'bne', 'blt', 'bge', 'bltu', 'bgeu', 'jal', 'jalr'].includes(inst.opcode) && 
+                isNaN(parseInt(inst.operands[lastOperandIndex]))) {
+                
+                const label = inst.operands[lastOperandIndex]; 
+                
+                if (labels[label] !== undefined) {
+                    const targetPC = labels[label];
+                    const currentPC = current_pc_index * 4; 
+                    const offsetBytes = targetPC - currentPC; 
+                    const offsetInstructions = offsetBytes / 4;
+                    
+                    // Reemplazar la etiqueta por el offset numérico
+                    inst.operands[lastOperandIndex] = offsetInstructions.toString(); 
+                    
+                } else {
+                    addLog(`Error de ensamblaje: Etiqueta no encontrada: ${label}`, 'error');
+                    return; 
+                }
+            }
+            newProgram.push(inst);
+            current_pc_index++;
+        }
+    }
+
+    // Reinicio del estado del simulador
+    state.pc = 0;
+    state.registers = Array(32).fill(0);
+    state.memory = Array(256).fill(0);
+    state.signalStates = {};
+    state.wireValues = {}; // Limpiar valores de líneas
+    state.program = newProgram;
+    state.logs = [];
+    
+    addLog(`Cargadas ${newProgram.length} instrucciones y resueltas etiquetas.`, 'success');
+    updateUI();
+    drawDatapath();
 }
 
+/**
+ * Ejecuta una instrucción en el Datapath.
+ * @param {object} inst - La instrucción a ejecutar.
+ */
 function executeInstruction(inst) {
   const op = inst.opcode;
   const ops = inst.operands;
@@ -210,308 +328,228 @@ function executeInstruction(inst) {
   const newMem = [...state.memory];
   let newPc = state.pc;
   let signals = {};
+  let offsetInstructions = 0;
 
+  // --- PASO 1: DECODE/EXECUTE LÓGICO Y CAPTURA DE VALORES DE REGISTROS/INMEDIATO ---
+  const currentPC = state.pc * 4; // PC en bytes
+  const pc_plus_4 = currentPC + 4;
+  
+  // Variables de entrada del Datapath
+  let rs1_data = 0; 
+  let rs2_data = 0; 
+  let imm_val = 0;  
+  
+  let alu_input_b = 0;
+  let alu_result = 0;
+  let data_mem_read = 0;
+  let write_data_val = 0;
+  let branch_target_val = 0;
+  let isBranchTaken = false;
+
+
+  // 1a. Determinar los valores correctos según el tipo de instrucción
   try {
-    switch(op) {
-      case 'add': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] + newRegs[rs2]) | 0;
-        signals = { type: 'R', alu_op: 'ADD', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'sub': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] - newRegs[rs2]) | 0;
-        signals = { type: 'R', alu_op: 'SUB', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'addi': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const imm = signExtend(parseInt(ops[2]), 12);
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] + imm) | 0;
-        signals = { type: 'I', alu_op: 'ADD', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'and': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] & newRegs[rs2];
-        signals = { type: 'R', alu_op: 'AND', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'andi': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const imm = signExtend(parseInt(ops[2]), 12);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] & imm;
-        signals = { type: 'I', alu_op: 'AND', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'or': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] | newRegs[rs2];
-        signals = { type: 'R', alu_op: 'OR', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'ori': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const imm = signExtend(parseInt(ops[2]), 12);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] | imm;
-        signals = { type: 'I', alu_op: 'OR', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'xor': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] ^ newRegs[rs2];
-        signals = { type: 'R', alu_op: 'XOR', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'xori': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const imm = signExtend(parseInt(ops[2]), 12);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] ^ imm;
-        signals = { type: 'I', alu_op: 'XOR', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'sll': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] << (newRegs[rs2] & 0x1F);
-        signals = { type: 'R', alu_op: 'SLL', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'slli': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const shamt = parseInt(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] << shamt;
-        signals = { type: 'I', alu_op: 'SLL', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'srl': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] >>> (newRegs[rs2] & 0x1F);
-        signals = { type: 'R', alu_op: 'SRL', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'srli': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const shamt = parseInt(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] >>> shamt;
-        signals = { type: 'I', alu_op: 'SRL', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'sra': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] >> (newRegs[rs2] & 0x1F);
-        signals = { type: 'R', alu_op: 'SRA', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'srai': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const shamt = parseInt(ops[2]);
-        if (rd !== 0) newRegs[rd] = newRegs[rs1] >> shamt;
-        signals = { type: 'I', alu_op: 'SRA', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'slt': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] | 0) < (newRegs[rs2] | 0) ? 1 : 0;
-        signals = { type: 'R', alu_op: 'SLT', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'slti': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const imm = signExtend(parseInt(ops[2]), 12);
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] | 0) < imm ? 1 : 0;
-        signals = { type: 'I', alu_op: 'SLT', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'sltu': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const rs2 = getRegIndex(ops[2]);
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] >>> 0) < (newRegs[rs2] >>> 0) ? 1 : 0;
-        signals = { type: 'R', alu_op: 'SLTU', wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'sltiu': {
-        const rd = getRegIndex(ops[0]);
-        const rs1 = getRegIndex(ops[1]);
-        const imm = parseInt(ops[2]) & 0xFFF;
-        if (rd !== 0) newRegs[rd] = (newRegs[rs1] >>> 0) < (imm >>> 0) ? 1 : 0;
-        signals = { type: 'I', alu_op: 'SLTU', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
-        break;
-      }
-      case 'lw': {
-        const rd = getRegIndex(ops[0]);
-        const offset = parseInt(ops[1]);
-        const rs1 = getRegIndex(ops[2]);
-        const addr = (newRegs[rs1] + offset) | 0;
-        if (rd !== 0 && addr >= 0 && addr < newMem.length) {
-          newRegs[rd] = newMem[addr];
-        }
-        signals = { type: 'L', alu_op: 'ADD', wer: 1, alu_src: 0, alu2reg: 0, wem: 0, branch: 0 };
-        break;
-      }
-      case 'sw': {
-        const rs2 = getRegIndex(ops[0]);
-        const offset = parseInt(ops[1]);
-        const rs1 = getRegIndex(ops[2]);
-        const addr = (newRegs[rs1] + offset) | 0;
-        if (addr >= 0 && addr < newMem.length) {
-          newMem[addr] = newRegs[rs2];
-        }
-        signals = { type: 'S', alu_op: 'ADD', wer: 0, alu_src: 0, alu2reg: 0, wem: 1, branch: 0 };
-        break;
-      }
-      case 'beq': {
-        const rs1 = getRegIndex(ops[0]);
-        const rs2 = getRegIndex(ops[1]);
-        const offset = parseInt(ops[2]);
-        signals = { type: 'B', alu_op: 'EQ', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
-        if (newRegs[rs1] === newRegs[rs2]) {
-          newPc += offset;
-          state.registers = newRegs;
-          state.memory = newMem;
-          state.pc = newPc;
-          state.signalStates = signals;
-          addLog(`PC=${state.pc - offset}: ${inst.raw} [TOMADO]`, 'success');
-          updateUI();
-          drawDatapath();
-          return;
-        }
-        break;
-      }
-      case 'bne': {
-        const rs1 = getRegIndex(ops[0]);
-        const rs2 = getRegIndex(ops[1]);
-        const offset = parseInt(ops[2]);
-        signals = { type: 'B', alu_op: 'NE', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
-        if (newRegs[rs1] !== newRegs[rs2]) {
-          newPc += offset;
-          state.registers = newRegs;
-          state.memory = newMem;
-          state.pc = newPc;
-          state.signalStates = signals;
-          addLog(`PC=${state.pc - offset}: ${inst.raw} [TOMADO]`, 'success');
-          updateUI();
-          drawDatapath();
-          return;
-        }
-        break;
-      }
-      case 'blt': {
-        const rs1 = getRegIndex(ops[0]);
-        const rs2 = getRegIndex(ops[1]);
-        const offset = parseInt(ops[2]);
-        signals = { type: 'B', alu_op: 'SLT', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
-        if ((newRegs[rs1] | 0) < (newRegs[rs2] | 0)) {
-          newPc += offset;
-          state.registers = newRegs;
-          state.memory = newMem;
-          state.pc = newPc;
-          state.signalStates = signals;
-          addLog(`PC=${state.pc - offset}: ${inst.raw} [TOMADO]`, 'success');
-          updateUI();
-          drawDatapath();
-          return;
-        }
-        break;
-      }
-      case 'bge': {
-        const rs1 = getRegIndex(ops[0]);
-        const rs2 = getRegIndex(ops[1]);
-        const offset = parseInt(ops[2]);
-        signals = { type: 'B', alu_op: 'SLT', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
-        if ((newRegs[rs1] | 0) >= (newRegs[rs2] | 0)) {
-          newPc += offset;
-          state.registers = newRegs;
-          state.memory = newMem;
-          state.pc = newPc;
-          state.signalStates = signals;
-          addLog(`PC=${state.pc - offset}: ${inst.raw} [TOMADO]`, 'success');
-          updateUI();
-          drawDatapath();
-          return;
-        }
-        break;
-      }
-      case 'bltu': {
-        const rs1 = getRegIndex(ops[0]);
-        const rs2 = getRegIndex(ops[1]);
-        const offset = parseInt(ops[2]);
-        signals = { type: 'B', alu_op: 'SLTU', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
-        if ((newRegs[rs1] >>> 0) < (newRegs[rs2] >>> 0)) {
-          newPc += offset;
-          state.registers = newRegs;
-          state.memory = newMem;
-          state.pc = newPc;
-          state.signalStates = signals;
-          addLog(`PC=${state.pc - offset}: ${inst.raw} [TOMADO]`, 'success');
-          updateUI();
-          drawDatapath();
-          return;
-        }
-        break;
-      }
-      case 'bgeu': {
-        const rs1 = getRegIndex(ops[0]);
-        const rs2 = getRegIndex(ops[1]);
-        const offset = parseInt(ops[2]);
-        signals = { type: 'B', alu_op: 'SLTU', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
-        if ((newRegs[rs1] >>> 0) >= (newRegs[rs2] >>> 0)) {
-          newPc += offset;
-          state.registers = newRegs;
-          state.memory = newMem;
-          state.pc = newPc;
-          state.signalStates = signals;
-          addLog(`PC=${state.pc - offset}: ${inst.raw} [TOMADO]`, 'success');
-          updateUI();
-          drawDatapath();
-          return;
-        }
-        break;
-      }
-      default:
-        addLog(`Instrucción no soportada: ${op}`, 'error');
-        return;
-    }
+      if (['add', 'sub', 'and', 'or', 'xor', 'sll', 'srl', 'sra', 'slt', 'sltu'].includes(op)) {
+          // R-Type: rd, rs1, rs2 -> ops[0], ops[1], ops[2]
+          rs1_data = state.registers[getRegIndex(ops[1])];
+          rs2_data = state.registers[getRegIndex(ops[2])];
+          
+      } else if (['addi', 'andi', 'ori', 'xori', 'slti', 'slli', 'srli', 'srai', 'sltiu'].includes(op)) {
+          // I-Type (ALU): rd, rs1, imm -> ops[0], ops[1], ops[2]
+          rs1_data = state.registers[getRegIndex(ops[1])];
+          imm_val = signExtend(parseInt(ops[2]), 12); 
+          
+      } else if (['lw', 'sw'].includes(op)) {
+          // L/S-Type: rd/rs2, offset, rs1 -> ops[0], ops[1], ops[2]
+          rs1_data = state.registers[getRegIndex(ops[2])]; // Base register es ops[2]
+          imm_val = signExtend(parseInt(ops[1]), 12);     // Offset es ops[1]
+          
+          if (op === 'sw') {
+              rs2_data = state.registers[getRegIndex(ops[0])]; // Dato a guardar (rs2) es ops[0]
+          }
 
-    newPc++;
-    state.registers = newRegs;
-    state.memory = newMem;
-    state.pc = newPc;
-    state.signalStates = signals;
-    addLog(`PC=${state.pc - 1}: ${inst.raw}`, 'success');
-    updateUI();
-    drawDatapath();
-    
+      } else if (['beq', 'bne', 'blt', 'bge', 'bltu', 'bgeu'].includes(op)) {
+          // B-Type: rs1, rs2, offset -> ops[0], ops[1], ops[2]
+          rs1_data = state.registers[getRegIndex(ops[0])]; // Rs1 es ops[0]
+          rs2_data = state.registers[getRegIndex(ops[1])]; // Rs2 es ops[1]
+          offsetInstructions = parseInt(ops[2]);
+          imm_val = signExtend(offsetInstructions * 4, 12); // Immediate es offset * 4 bytes
+      }
+      
+      // 1b. Ejecución Lógica y Señales (Definimos el resultado de la ALU y las señales de control)
+      
+      switch(op) {
+          // --- R-Type ---
+          case 'add': case 'sub': case 'and': case 'or': case 'xor': 
+          case 'sll': case 'srl': case 'sra': case 'slt': case 'sltu': {
+              signals = { type: 'R', alu_op: op.toUpperCase(), wer: 1, alu_src: 1, alu2reg: 1, wem: 0, branch: 0 };
+              alu_input_b = rs2_data; 
+              // Lógica de ALU para R-Type
+              alu_result = (op === 'add') ? (rs1_data + alu_input_b) | 0 : 
+                           (op === 'sub') ? (rs1_data - alu_input_b) | 0 : 
+                           (op === 'and') ? (rs1_data & alu_input_b) : 
+                           (op === 'or') ? (rs1_data | alu_input_b) : 
+                           (op === 'xor') ? (rs1_data ^ alu_input_b) : 
+                           (op === 'sll') ? (rs1_data << (alu_input_b & 0x1F)) : 
+                           (op === 'srl') ? (rs1_data >>> (alu_input_b & 0x1F)) : 
+                           (op === 'sra') ? (rs1_data >> (alu_input_b & 0x1F)) : 
+                           (op === 'slt') ? ((rs1_data | 0) < (alu_input_b | 0) ? 1 : 0) : 
+                           (op === 'sltu') ? ((rs1_data >>> 0) < (alu_input_b >>> 0) ? 1 : 0) : 0;
+              write_data_val = alu_result;
+              break;
+          }
+          // --- I-Type (ALU) ---
+          case 'addi': case 'andi': case 'ori': case 'xori': case 'slti': case 'slli': case 'srli': case 'srai': case 'sltiu': {
+              signals = { type: 'I', alu_op: op.toUpperCase().replace('I', ''), wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
+              alu_input_b = imm_val; 
+              // Lógica de ALU para I-Type
+              alu_result = (op === 'addi') ? (rs1_data + alu_input_b) | 0 : 
+                           (op === 'andi') ? (rs1_data & alu_input_b) : 
+                           (op === 'ori') ? (rs1_data | alu_input_b) : 
+                           (op === 'xori') ? (rs1_data ^ alu_input_b) : 
+                           (op === 'slli') ? (rs1_data << (alu_input_b & 0x1F)) : 
+                           (op === 'srli') ? (rs1_data >>> (alu_input_b & 0x1F)) : 
+                           (op === 'srai') ? (rs1_data >> (alu_input_b & 0x1F)) : 
+                           (op === 'slti') ? ((rs1_data | 0) < alu_input_b ? 1 : 0) : 
+                           (op === 'sltiu') ? ((rs1_data >>> 0) < (alu_input_b >>> 0) ? 1 : 0) : 0;
+              write_data_val = alu_result;
+              break;
+          }
+          // --- L-Type (Load) ---
+          case 'lw': {
+              signals = { type: 'L', alu_op: 'ADD', wer: 1, alu_src: 0, alu2reg: 0, wem: 0, branch: 0 };
+              alu_input_b = imm_val;
+              alu_result = (rs1_data + alu_input_b) | 0; // Dirección de Memoria
+              
+              const addr = alu_result;
+              if (addr >= 0 && addr < newMem.length) {
+                  data_mem_read = newMem[addr];
+              }
+              write_data_val = data_mem_read; 
+              break;
+          }
+          // --- S-Type (Store) ---
+          case 'sw': {
+              signals = { type: 'S', alu_op: 'ADD', wer: 0, alu_src: 0, alu2reg: 0, wem: 1, branch: 0 };
+              alu_input_b = imm_val;
+              alu_result = (rs1_data + alu_input_b) | 0; // Dirección de Memoria
+              // Dato a escribir es rs2_data, no hay Write Back a registro.
+              break;
+          }
+          // --- B-Type (Branch) ---
+          case 'beq': case 'bne': case 'blt': case 'bge': case 'bltu': case 'bgeu': {
+              signals = { type: 'B', alu_op: 'CMP', wer: 0, alu_src: 1, alu2reg: 0, wem: 0, branch: 1 };
+              alu_input_b = rs2_data; 
+              alu_result = (rs1_data - alu_input_b) | 0; // ALU para comparación
+              
+              branch_target_val = pc_plus_4 + imm_val; // Dirección absoluta del salto
+              
+              if ((op === 'beq' && rs1_data === rs2_data) ||
+                  (op === 'bne' && rs1_data !== rs2_data) ||
+                  (op === 'blt' && (rs1_data | 0) < (rs2_data | 0)) ||
+                  (op === 'bge' && (rs1_data | 0) >= (rs2_data | 0)) ||
+                  (op === 'bltu' && (rs1_data >>> 0) < (rs2_data >>> 0)) ||
+                  (op === 'bgeu' && (rs1_data >>> 0) >= (rs2_data >>> 0))) {
+                  
+                  newPc += offsetInstructions;
+                  isBranchTaken = true;
+              }
+              break;
+          }
+          // --- J-Type (Saltos) ---
+          case 'jal': {
+              // Simplificado: asume que el offset ya fue resuelto en loadCode (offsetInstructions)
+              signals = { type: 'J', alu_op: 'JUMP', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
+              
+              // Dato a escribir (dirección de retorno)
+              write_data_val = pc_plus_4;
+              
+              // Actualizar PC (se hace en el paso final, solo marcamos el salto)
+              newPc += offsetInstructions;
+              isBranchTaken = true; // Forzamos el salto
+              break;
+          }
+          case 'jalr': {
+              // Simplificado: asume que el offset ya fue resuelto en loadCode
+              signals = { type: 'J', alu_op: 'JUMPR', wer: 1, alu_src: 0, alu2reg: 1, wem: 0, branch: 0 };
+              
+              // Dato a escribir (dirección de retorno)
+              write_data_val = pc_plus_4;
+              
+              // Calcular PC destino: (rs1 + offset) & ~1
+              const imm = signExtend(parseInt(ops[2]), 12);
+              const rs1 = getRegIndex(ops[1]);
+              const jumpTargetBytes = (state.registers[rs1] + imm) & ~1;
+              
+              // Actualizar newPc (en instrucciones)
+              newPc = jumpTargetBytes / 4;
+              isBranchTaken = true; 
+              break;
+          }
+          
+          default:
+              addLog(`Instrucción no soportada: ${op}`, 'error');
+              return;
+      }
+      
+      // --- PASO 2: CAPTURA DE VALORES AL ESTADO GLOBAL (Para el Dibujo) ---
+      state.wireValues = {
+          PC: currentPC,
+          PC_Plus_4: pc_plus_4,
+          Instruction: inst.raw,
+          ReadData1: rs1_data,
+          ReadData2: rs2_data,
+          Immediate: imm_val,
+          ALU_Src_B: alu_input_b,
+          ALU_Result: alu_result,
+          Data_Mem_Read: data_mem_read,
+          Branch_Target: branch_target_val,
+          Write_Data: write_data_val,
+      };
+
+      // --- PASO 3: ESCRITURA DE REGISTROS/MEMORIA (Write Back - ¡CORREGIDO Y SIMPLIFICADO!) ---
+      
+      // 3a. Escritura de Registro (si wer=1)
+      if (signals.wer === 1) {
+          const rd = getRegIndex(ops[0]); // RD es el primer operando para R, I, L, J-types
+          if (rd !== 0) {
+              // Escribimos el valor que pasó por el MUX ALU2REG (Write_Data)
+              newRegs[rd] = state.wireValues.Write_Data;
+          }
+      }
+      
+      // 3b. Escritura de Memoria (si wem=1, solo para SW)
+      if (signals.wem === 1) {
+          const addr = state.wireValues.ALU_Result; // Dirección calculada por la ALU
+          const data_to_write = state.wireValues.ReadData2; // Dato a guardar (RS2)
+          
+          if (addr >= 0 && addr < newMem.length) {
+              newMem[addr] = data_to_write;
+          }
+      }
+
+      // 4. Actualizar PC (Si no hubo salto, avanza 1 instrucción)
+      if (!isBranchTaken) {
+        newPc++;
+      }
+      
+      // 5. Escribir el estado final y logging
+      state.registers = newRegs;
+      state.memory = newMem;
+      state.pc = newPc;
+      state.signalStates = signals;
+      
+      const logMsg = isBranchTaken ? `PC=${currentPC / 4}: ${inst.raw} [SALTO TOMADO]` : `PC=${currentPC / 4}: ${inst.raw}`;
+      addLog(logMsg, 'success');
+      updateUI();
+      drawDatapath();
+      
   } catch (error) {
-    addLog(`Error: ${error.message}`, 'error');
+    // Si hay un error, el programa se detiene y loggea el error
+    addLog(`Error fatal en la ejecución de ${inst.raw}: ${error.message}`, 'error');
+    console.error(error); // Log en la consola para debugging
     state.running = false;
+    document.getElementById('runBtn').textContent = 'Ejecutar';
     updateUI();
   }
 }
@@ -539,7 +577,8 @@ function runLoop() {
   
   if (state.pc < state.program.length) {
     executeInstruction(state.program[state.pc]);
-    setTimeout(runLoop, 600);
+    // Ajustar el tiempo para que el simulador no corra demasiado rápido
+    setTimeout(runLoop, 1500); 
   } else {
     state.running = false;
     document.getElementById('runBtn').textContent = 'Ejecutar';
@@ -553,6 +592,7 @@ function reset() {
   state.memory = Array(256).fill(0);
   state.running = false;
   state.signalStates = {};
+  state.wireValues = {}; // Limpiar valores de líneas
   document.getElementById('runBtn').textContent = 'Ejecutar';
   addLog('Sistema reiniciado', 'success');
   updateUI();
@@ -594,6 +634,51 @@ function updateZoomDisplay() {
   zoomLevel.textContent = Math.round(state.zoom * 100) + '%';
 }
 
+// NUEVO: Función para dibujar las etiquetas y valores en las líneas
+function drawWireLabels() {
+    ctx.font = 'bold 10px monospace';
+    ctx.strokeStyle = 'transparent';
+    
+    for (const key in wireMap) {
+        const [valueKey, label, x, y, align] = wireMap[key];
+        
+        let value = state.wireValues[valueKey];
+        
+        // Formato del valor
+        if (valueKey === 'Instruction') {
+            value = state.program[state.pc] ? state.program[state.pc].raw : '---';
+        } else {
+            // Aseguramos que solo mostramos 32 bits, si es numérico
+            value = (value === undefined || value === null) ? '---' : value;
+            
+            if (valueKey === 'PC' || valueKey === 'PC_Plus_4' || valueKey === 'Branch_Target') {
+                // Formato hexadecimal para direcciones
+                value = '0x' + (state.wireValues[valueKey] >>> 0).toString(16).padStart(8, '0');
+            } else if (!isNaN(state.wireValues[valueKey])) {
+                 // Formato decimal con signo para otros valores de 32 bits
+                 value = (state.wireValues[valueKey] | 0).toString(10);
+            }
+        }
+
+        ctx.textAlign = align === 'L' ? 'left' : (align === 'R' ? 'right' : 'center');
+
+        // Dibujar la etiqueta fija
+        ctx.fillStyle = '#457B9D'; // Color del label (azul)
+        ctx.fillText(label, x, y);
+        
+        // Dibujar el valor dinámico
+        ctx.fillStyle = '#C17B7B'; // Color del valor (rojo/vino)
+        if (valueKey === 'Instruction') {
+            ctx.font = '10px monospace';
+            ctx.fillText(value, x, y + 12);
+            ctx.font = 'bold 10px monospace';
+        } else {
+            ctx.fillText(value, x, y + 12); 
+        }
+    }
+}
+
+
 function drawDatapath() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   
@@ -609,6 +694,9 @@ function drawDatapath() {
   
   // Dibujar conexiones
   drawWires();
+  
+  // Dibuja etiquetas de líneas y valores
+  drawWireLabels(); 
   
   // Dibujar componentes
   for (let comp of Object.values(components)) {
@@ -758,41 +846,47 @@ function drawWires() {
   
   // Memoria Datos a MUX ALU2REG
   drawLine(
-    components.dataMem.x, components.dataMem.y + 120,
-    components.muxAlu2Reg.x + components.muxAlu2Reg.w, components.muxAlu2Reg.y + 15,
+    components.dataMem.x + components.dataMem.w, components.dataMem.y + 120,
+    components.muxAlu2Reg.x, components.muxAlu2Reg.y + 15,
     signals.alu2reg === 0, '#D4A574', 3
   );
   
   // MUX ALU2REG a Banco Registros (writeback)
-  const wbX = components.muxAlu2Reg.x;
+  const wbX = components.muxAlu2Reg.x + components.muxAlu2Reg.w; // Sale del MUX
   const wbY = components.muxAlu2Reg.y + components.muxAlu2Reg.h / 2;
-  drawLine(wbX, wbY, wbX - 30, wbY, signals.wer === 1, '#7BA97C', 3);
-  drawLine(wbX - 30, wbY, wbX - 30, components.regBank.y - 20, signals.wer === 1, '#7BA97C', 3);
-  drawLine(wbX - 30, components.regBank.y - 20, components.regBank.x + components.regBank.w / 2, components.regBank.y - 20, signals.wer === 1, '#7BA97C', 3);
-  drawLine(components.regBank.x + components.regBank.w / 2, components.regBank.y - 20, components.regBank.x + components.regBank.w / 2, components.regBank.y, signals.wer === 1, '#7BA97C', 3);
+  const isWritingBack = signals.wer === 1;
+
+  drawLine(wbX, wbY, wbX + 30, wbY, isWritingBack, '#7BA97C', 3);
+  drawLine(wbX + 30, wbY, wbX + 30, components.regBank.y - 20, isWritingBack, '#7BA97C', 3);
+  drawLine(wbX + 30, components.regBank.y - 20, components.regBank.x + components.regBank.w / 2, components.regBank.y - 20, isWritingBack, '#7BA97C', 3);
+  drawLine(components.regBank.x + components.regBank.w / 2, components.regBank.y - 20, components.regBank.x + components.regBank.w / 2, components.regBank.y, isWritingBack, '#7BA97C', 3);
   
-  // Branch connections
+  // Branch connections (usa BranchImmGen y BranchAdder)
   if (signals.branch === 1) {
+    // Instruction Mem (Opcode/Func) to Branch Imm Generator
     drawLine(
       components.instMem.x + components.instMem.w, components.instMem.y + 150,
-      components.ordenamiento.x, components.ordenamiento.y + 25,
+      components.BranchImmGen.x, components.BranchImmGen.y + 25,
       true, '#D4A574', 2
     );
     
+    // Branch Imm Generator to Branch Adder (Offset)
     drawLine(
-      components.ordenamiento.x, components.ordenamiento.y + 25,
-      components.sumadorBranch.x + components.sumadorBranch.w, components.sumadorBranch.y + 25,
+      components.BranchImmGen.x, components.BranchImmGen.y + 25,
+      components.BranchAdder.x + components.BranchAdder.w, components.BranchAdder.y + 25,
       true, '#457B9D', 3
     );
     
+    // PC+4 (pcAdder) to Branch Adder (Base Address)
     drawLine(
-      components.pcAdder.x, components.pcAdder.y + 25,
-      components.sumadorBranch.x + components.sumadorBranch.w, components.sumadorBranch.y + 35,
+      components.pcAdder.x + components.pcAdder.w / 2, components.pcAdder.y + components.pcAdder.h,
+      components.BranchAdder.x + components.BranchAdder.w / 2, components.BranchAdder.y,
       true, '#6A9C89', 2
     );
     
+    // Branch Adder to PC MUX (New PC Target)
     drawLine(
-      components.sumadorBranch.x, components.sumadorBranch.y + 25,
+      components.BranchAdder.x, components.BranchAdder.y + 25,
       components.muxPC.x + 20, components.muxPC.y + 50,
       true, '#457B9D', 2
     );
@@ -803,16 +897,16 @@ function drawControlSignals() {
   const signals = state.signalStates;
   if (!signals.type) return;
   
-  const x = 500;
-  const y = 550;
+  const x = 450;
+  const y = 490;
   const spacing = 80;
   
   const controlLabels = [
-    { name: 'WER', value: signals.wer },
-    { name: 'ALU_SRC', value: signals.alu_src },
-    { name: 'ALU2REG', value: signals.alu2reg },
-    { name: 'WEM', value: signals.wem },
-    { name: 'BRANCH', value: signals.branch }
+    { name: 'Wer', value: signals.wer },
+    { name: 'ALUsrc', value: signals.alu_src },
+    { name: 'ALU2reg', value: signals.alu2reg },
+    { name: 'Wem', value: signals.wem },
+    { name: 'Branch', value: signals.branch }
   ];
   
   ctx.font = 'bold 11px monospace';
