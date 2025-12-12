@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,7 +16,7 @@
             <div class="sidebar">
                 <div class="section">
                     <h3>Editor de Código</h3>
-                    <textarea id="input" spellcheck="false"># Ejemplo: Suma de números
+                    <textarea id="codeEditor" spellcheck="false"># Ejemplo: Suma de números
 addi x5, x0, 10
 addi x6, x0, 20
 add x7, x5, x6
@@ -36,8 +35,7 @@ sw x7, 0(x0)</textarea>
                 <div class="section">
                     <div class="state-box">
                         <div><span class="label">Contador de Programa:</span> <span id="pcValue">0</span></div>
-                        <div><span class="label">Instrucción:</span> <span id="currentInstruction">Sin
-                                instrucción</span></div>
+                        <div><span class="label">Instrucción:</span> <span id="currentInstruction">Sin instrucción</span></div>
                     </div>
                 </div>
 
@@ -67,7 +65,8 @@ sw x7, 0(x0)</textarea>
             </div>
         </div>
     </div>
-    <script src="nuevo.js"></script>
-</body>
 
+    <script src="js/nuevo.js"></script>
+    <script src="js/logica_bin.js"></script>
+</body>
 </html>
