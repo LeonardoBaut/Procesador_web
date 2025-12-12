@@ -214,7 +214,7 @@ function collectLabels(lines) {
 }
 
 function convert() {
-    let lines = document.getElementById("input").value.trim().split("\n");
+    let lines = document.getElementById("codeEditor").value.trim().split("\n");
     const labels = collectLabels(lines);
 
     let out = "";
